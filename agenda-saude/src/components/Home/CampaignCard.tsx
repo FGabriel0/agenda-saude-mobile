@@ -6,7 +6,7 @@ import {
   StyleSheet,
 } from 'react-native';
 
-import { COLORS } from '../styles/theme';
+import { COLORS } from '../../styles/theme';
 
 export default function CampaignCard() {
   return (

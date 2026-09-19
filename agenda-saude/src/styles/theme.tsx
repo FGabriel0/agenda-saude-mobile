@@ -1,3 +1,7 @@
+
+
+//Cores Utilizadas
+
 export const COLORS = {
   primary: '#07805F',
   primaryDark: '#056B50',

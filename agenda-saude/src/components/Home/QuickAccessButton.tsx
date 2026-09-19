@@ -7,7 +7,7 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS } from '../styles/theme';
+import { COLORS } from '../../styles/theme';
 
 interface QuickAccessButtonProps {
   icon: React.ComponentProps<typeof Ionicons>['name'];

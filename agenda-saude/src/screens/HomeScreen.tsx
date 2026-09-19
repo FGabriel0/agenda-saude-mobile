@@ -1,11 +1,12 @@
 import React from 'react'
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 
-import Header from '../components/Header';
-import CampaignCard from '../components/CampaignCard';
-import QuickAccess from '../components/QuickAccess';
-import NextCampaign from '../components/NextCampaign';
-import BottomNavigation from '../components/BottomNavigation';
+import Header from '../components/Home/Header';
+import CampaignCard from '../components/Home/CampaignCard';
+import QuickAccess from '../components/Home/QuickAccess';
+import NextCampaign from '../components/Home/NextCampaign';
+import BottomNavigation from '../components/Home/BottomNavigation';
+import { COLORS } from '@/styles/theme';
 
 
 
@@ -19,7 +20,10 @@ const HomeScreen = () => {
         contentContainerStyle={styles.content}
 
       >
-        <Header />
+        <Header
+          title="Agenda Saúde"
+          observation='Cuidado perto de você'
+           />
         <CampaignCard />
         <QuickAccess />
         <NextCampaign />
@@ -33,7 +37,7 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F9F7',
+    backgroundColor: COLORS.background,
   },
   content: {
     paddingHorizontal: 20,

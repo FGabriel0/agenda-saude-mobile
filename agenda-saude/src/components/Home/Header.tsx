@@ -2,7 +2,13 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 import { COLORS } from '@/styles/theme';
-export default function Header() {
+
+interface HeaderProps{
+  title:string,
+  observation:string
+}
+
+export default function Header({title,observation}:HeaderProps) {
   return (
     <View style={styles.container}>
 
@@ -12,11 +18,11 @@ export default function Header() {
 
       <View>
         <Text style={styles.title}>
-          Agenda Saúde
+          {title}
         </Text>
 
         <Text style={styles.subtitle}>
-          Cuidado perto de você
+          {observation}
         </Text>
       </View>
 

@@ -5,23 +5,36 @@ import {
   StyleSheet,
 } from 'react-native';
 
+import { useRouter } from 'expo-router';
+
 import { Ionicons } from '@expo/vector-icons';
 
-import { COLORS } from '../styles/theme';
+import { COLORS } from '../../styles/theme';
 
 interface NavItemProps {
   icon: React.ComponentProps<typeof Ionicons>['name'];
   title: string;
+  route:string;
   active?: boolean;
 }
 
 export default function NavItem({
   icon,
   title,
+  route,
   active = false,
 }: NavItemProps) {
+
+const router = useRouter();
+  
+  const handlePress = () => {
+    router.push(route as any)
+  };
+
   return (
-    <TouchableOpacity style={styles.container}>
+    <TouchableOpacity style={styles.container}
+      onPress={handlePress}
+      activeOpacity={0.7}>
 
       <Ionicons
         name={icon}

@@ -1,12 +1,22 @@
 import HomeScreen from "@/screens/HomeScreen";
+
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+
 export default function Page() {
+
+
+
   return (
-    <View style={styles.container}>
-        <HomeScreen/>
-      </View>
-    
+
+    <SafeAreaView style={styles.container}>
+      <HomeScreen />
+    </SafeAreaView>
+
   );
 }
 

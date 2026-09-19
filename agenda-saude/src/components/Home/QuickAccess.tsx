@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 import QuickAccessButton from './QuickAccessButton';
-import { COLORS } from '../styles/theme';
+import { COLORS } from '../../styles/theme';
 
 export default function QuickAccess() {
   return (
