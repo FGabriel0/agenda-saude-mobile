@@ -1,6 +1,4 @@
-import HomeScreen from "@/screens/HomeScreen";
-
-
+import BuscarScreen from "@/screens/BuscarScreen";
 import { StyleSheet } from "react-native";
 
 
@@ -14,16 +12,16 @@ export default function Page() {
   return (
 
     <SafeAreaView style={styles.container}>
-      <HomeScreen />
+      <BuscarScreen/>
     </SafeAreaView>
 
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    padding: 24,
-  }
+container: {
+        flex: 1,
+        alignItems: "center",
+        padding: 24,
+    }
 });

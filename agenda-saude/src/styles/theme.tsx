@@ -18,4 +18,6 @@ export const COLORS = {
   dangerLight: '#FFE8EB',
 
   blue: '#1686B0',
+  dark: '#102F38',
+  lightGreen: '#E1F3ED'
 };

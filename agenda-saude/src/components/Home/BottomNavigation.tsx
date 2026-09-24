@@ -68,16 +68,12 @@ const styles = StyleSheet.create({
     bottom: 12,
     left: 20,
     right: 20,
-
     height: 70,
-
     backgroundColor: COLORS.white,
     borderRadius: 18,
-
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-
     elevation: 5,
   },
 

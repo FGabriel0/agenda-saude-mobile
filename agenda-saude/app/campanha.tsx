@@ -1,11 +1,10 @@
-import HomeScreen from "@/screens/HomeScreen";
-
-
 import { StyleSheet } from "react-native";
 
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+
+import CampanhaScreen from "@/screens/CampanhaScreen"
 
 export default function Page() {
 
@@ -14,7 +13,7 @@ export default function Page() {
   return (
 
     <SafeAreaView style={styles.container}>
-      <HomeScreen />
+      <CampanhaScreen/>
     </SafeAreaView>
 
   );
