@@ -1,8 +1,8 @@
-import React from 'react';
 import {
-  View,
-  Text,
   StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { COLORS } from '@/styles/theme';
@@ -12,6 +12,9 @@ interface AppointmentCardProps {
   titulo: string;
   local: string;
   cor: string;
+  agendado?: boolean;
+  onAgendar?: () => void;
+  onCancelar?: () => void;
 }
 
 export default function AppointmentCard({
@@ -19,6 +22,9 @@ export default function AppointmentCard({
   titulo,
   local,
   cor,
+  agendado = false,
+  onAgendar,
+  onCancelar,
 }: AppointmentCardProps) {
   return (
     <View style={styles.card}>
@@ -43,6 +49,21 @@ export default function AppointmentCard({
           {local}
         </Text>
       </View>
+
+      {(onAgendar || onCancelar) && (
+  <TouchableOpacity
+    style={styles.button}
+    onPress={
+      agendado
+        ? onCancelar
+        : onAgendar
+    }
+  >
+    <Text style={styles.buttonText}>
+      {agendado ? 'Cancelar' : 'Agendar'}
+    </Text>
+  </TouchableOpacity>
+)}
 
     </View>
   );
@@ -92,5 +113,19 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: COLORS.textSecondary,
     marginTop: 4,
+  },
+
+  button: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginLeft: 8,
+  },
+
+  buttonText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

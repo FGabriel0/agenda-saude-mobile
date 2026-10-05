@@ -1,41 +1,124 @@
-import React from 'react';
+import { useState } from 'react';
 import {
-  View,
-  Text,
   StyleSheet,
+  Text,
   TouchableOpacity,
+  View,
 } from 'react-native';
-
 
 import { COLORS } from '@/styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function Calendar() {
-  const dias: string[][] = [
-    ['30', '31', '1', '2', '3', '4', '5'],
-    ['6', '7', '8', '9', '10', '11', '12'],
-    ['13', '14', '15', '16', '17', '18', '19'],
-    ['20', '21', '22', '23', '24', '25', '26'],
-    ['27', '28', '29', '30', '1', '2', '3'],
-  ];
+type CalendarProps = {
+  onDateChange?: (date: Date) => void;
+};
 
-  const diasSemana: string[] = [
-    'D',
-    'S',
-    'T',
-    'Q',
-    'Q',
-    'S',
-    'S',
-  ];
+const meses = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
+];
+
+const diasSemana = [
+  'D',
+  'S',
+  'T',
+  'Q',
+  'Q',
+  'S',
+  'S',
+];
+
+export default function Calendar({
+  onDateChange,
+}: CalendarProps) {
+  const [mesAtual, setMesAtual] = useState(8);
+  const [anoAtual, setAnoAtual] = useState(2026);
+  const [diaSelecionado, setDiaSelecionado] =
+    useState(14);
+
+  function mesAnterior() {
+    if (mesAtual === 0) {
+      setMesAtual(11);
+      setAnoAtual((ano) => ano - 1);
+    } else {
+      setMesAtual((mes) => mes - 1);
+    }
+  }
+
+  function proximoMes() {
+    if (mesAtual === 11) {
+      setMesAtual(0);
+      setAnoAtual((ano) => ano + 1);
+    } else {
+      setMesAtual((mes) => mes + 1);
+    }
+  }
+
+  function selecionarDia(dia: number) {
+    setDiaSelecionado(dia);
+
+    const data = new Date(
+      anoAtual,
+      mesAtual,
+      dia
+    );
+
+    onDateChange?.(data);
+  }
+
+  function gerarDiasDoMes() {
+    const primeiroDia = new Date(
+      anoAtual,
+      mesAtual,
+      1
+    ).getDay();
+
+    const quantidadeDias = new Date(
+      anoAtual,
+      mesAtual + 1,
+      0
+    ).getDate();
+
+    const dias: (number | null)[] = [];
+
+    for (let i = 0; i < primeiroDia; i++) {
+      dias.push(null);
+    }
+
+    for (
+      let dia = 1;
+      dia <= quantidadeDias;
+      dia++
+    ) {
+      dias.push(dia);
+    }
+
+    while (dias.length % 7 !== 0) {
+      dias.push(null);
+    }
+
+    return dias;
+  }
+
+  const dias = gerarDiasDoMes();
 
   return (
     <View style={styles.calendar}>
 
-      {/* Cabeçalho do calendário */}
+      {/* Cabeçalho */}
       <View style={styles.calendarHeader}>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={mesAnterior}>
           <Ionicons
             name="chevron-back"
             size={16}
@@ -44,10 +127,10 @@ export default function Calendar() {
         </TouchableOpacity>
 
         <Text style={styles.month}>
-          Setembro 2026
+          {meses[mesAtual]} {anoAtual}
         </Text>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={proximoMes}>
           <Ionicons
             name="chevron-forward"
             size={16}
@@ -69,49 +152,54 @@ export default function Calendar() {
         ))}
       </View>
 
-      {/* Dias do mês */}
-      {dias.map((semana, semanaIndex) => (
-        <View
-          key={semanaIndex}
-          style={styles.week}
-        >
-          {semana.map((dia, index) => {
+      {/* Dias */}
+      <View style={styles.daysGrid}>
 
-            const selecionado =
-              dia === '14' &&
-              semanaIndex === 2;
+        {dias.map((dia, index) => {
 
-            const outroMes =
-              (semanaIndex === 0 && index < 2) ||
-              (semanaIndex === 4 && index > 3);
+          const selecionado =
+            dia === diaSelecionado;
 
-            return (
-              <View
-                key={index}
-                style={[
-                  styles.dayContainer,
-                  selecionado && styles.selectedDay,
-                ]}
-              >
+          return (
+            <TouchableOpacity
+              key={index}
+              disabled={dia === null}
+              onPress={() => {
+                if (dia !== null) {
+                  selecionarDia(dia);
+                }
+              }}
+              style={[
+                styles.dayContainer,
+                selecionado &&
+                  styles.selectedDay,
+              ]}
+            >
+
+              {dia !== null && (
                 <Text
                   style={[
                     styles.day,
-                    outroMes && styles.otherMonth,
-                    selecionado && styles.selectedText,
+                    selecionado &&
+                      styles.selectedText,
                   ]}
                 >
                   {dia}
                 </Text>
-              </View>
-            );
-          })}
-        </View>
-      ))}
+              )}
+
+            </TouchableOpacity>
+          );
+        })}
+
+      </View>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+
   calendar: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -140,15 +228,20 @@ const styles = StyleSheet.create({
   },
 
   weekDay: {
-    width: 30,
+    width: '14.28%',
     textAlign: 'center',
     fontSize: 8,
     color: COLORS.textSecondary,
     fontWeight: '600',
   },
 
+  daysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+
   dayContainer: {
-    width: 30,
+    width: '14.28%',
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
@@ -160,10 +253,6 @@ const styles = StyleSheet.create({
     color: COLORS.text,
   },
 
-  otherMonth: {
-    color: COLORS.textSecondary,
-  },
-
   selectedDay: {
     backgroundColor: COLORS.primary,
   },
@@ -172,4 +261,5 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
   },
+
 });
