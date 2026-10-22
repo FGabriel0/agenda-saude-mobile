@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import BottomNavigation from '@/components/Home/BottomNavigation';
 
 import Header from '@/components/Home/Header';
+import MapaUnidades from '@/components/Services/MapaUnidades';
 
 export default function ServicosScreen() {
   return (
@@ -41,7 +42,7 @@ export default function ServicosScreen() {
           <SearchService />
 
           {/* Mapa */}
-          <ServiceMap />
+          <MapaUnidades/>
 
           {/* Tipos de serviço */}
           <ServiceTypes />
@@ -50,7 +51,7 @@ export default function ServicosScreen() {
           <NearbyHeader />
 
           <HealthUnitCard
-            name="Posto Edmar Fujita"
+            name="Posto Vila do Sol"
             status="ABERTO"
             distance="1,2 km"
             information="Centro • até 17h"
@@ -58,7 +59,7 @@ export default function ServicosScreen() {
           />
 
           <HealthUnitCard
-            name="UPA Praia do Futuro"
+            name="Farmácia Popular"
             status="24 HORAS"
             distance="3,8 km"
             information="Atendimento 24h"

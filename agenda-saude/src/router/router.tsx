@@ -7,4 +7,5 @@ export const ROUTES = {
   BUSCAR: '/buscar',
   SERVICOS: '/servicos',
   INFORMAR: '/informar',
+  LOGIN:'/login'
 } as const;
