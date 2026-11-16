@@ -12,7 +12,8 @@ import {
     View,
 } from 'react-native';
 
-import { supabase } from '../lib/supabase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth, authReady } from '../lib/firebase';
 import { COLORS } from '../styles/theme';
 
 export default function CadastroScreen() {
@@ -26,6 +27,13 @@ export default function CadastroScreen() {
         useState('');
 
     async function cadastrar() {
+        await authReady;
+
+        await createUserWithEmailAndPassword(
+        auth,
+        email.trim(),
+        senha
+);
         // Verifica se todos os campos foram preenchidos
         if (
             !email.trim() ||
@@ -71,75 +79,14 @@ export default function CadastroScreen() {
             setCarregando(true);
             setMensagem('');
 
-            const { data, error } =
-                await supabase.auth.signUp({
-                    email: email
-                        .trim()
-                        .toLowerCase(),
-                    password: senha,
-                });
-
-            if (error) {
-                console.error(
-                    'Erro no cadastro:',
-                    error
-                );
-
-                const mensagemErro =
-                    error.message.toLowerCase();
-
-                if (
-                    mensagemErro.includes(
-                        'invalid'
-                    ) &&
-                    mensagemErro.includes(
-                        'email'
-                    )
-                ) {
-                    setMensagem(
-                        'Digite um e-mail válido.'
-                    );
-                    return;
-                }
-
-                if (
-                    mensagemErro.includes(
-                        'already'
-                    ) ||
-                    mensagemErro.includes(
-                        'registered'
-                    )
-                ) {
-                    setMensagem(
-                        'Já existe uma conta cadastrada com este e-mail.'
-                    );
-                    return;
-                }
-
-                setMensagem(
-                    'Não foi possível criar a conta. Tente novamente.'
-                );
-                return;
-            }
-
-            if (data.session) {
-                setMensagem(
-                    'Conta criada com sucesso!'
-                );
-            } else {
-                setMensagem(
-                    'Conta criada! Verifique seu e-mail para confirmar o cadastro.'
-                );
-            }
+            await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), senha);
+            setMensagem('Conta criada com sucesso!');
+            router.replace('/');
         } catch (error) {
-            console.error(
-                'Erro inesperado:',
-                error
-            );
+            console.error('Erro no cadastro:', error);
 
-            setMensagem(
-                'Ocorreu um erro ao criar a conta. Tente novamente.'
-            );
+            const code = (error as { code?: string }).code;
+            setMensagem(code === 'auth/email-already-in-use' ? 'Já existe uma conta cadastrada com este e-mail.' : code === 'auth/invalid-email' ? 'Digite um e-mail válido.' : 'Não foi possível criar a conta. Tente novamente.');
         } finally {
             setCarregando(false);
         }

@@ -44,7 +44,7 @@ type Compromisso = {
 };
 
 type Agendamento = {
-    id: number;
+    id: string;
     campaign_id: number;
 };
 

@@ -9,7 +9,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import HomeScreen from '@/screens/HomeScreen';
-import { supabase } from '../src/lib/supabase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../src/lib/firebase';
 import { COLORS } from '../src/styles/theme';
 
 export default function Page() {
@@ -20,53 +21,13 @@ export default function Page() {
         useState(false);
 
     useEffect(() => {
-        verificarSessao();
-
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(
-            (_event, session) => {
-                setAutenticado(!!session);
-
-                if (!session) {
-                    router.replace('/login');
-                }
-            }
-        );
-
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
-
-    async function verificarSessao() {
-        try {
-        const {
-            data: { user },
-            error,
-        } = await supabase.auth.getUser();
-
-        if (error || !user) {
-            setAutenticado(false);
-            router.replace('/login');
-            return;
-        }
-
-setAutenticado(true);
-
-            setAutenticado(true);
-        } catch (error) {
-            console.error(
-                'Erro ao verificar sessão:',
-                error
-            );
-
-            setAutenticado(false);
-            router.replace('/login');
-        } finally {
+        const unsubscribe = onAuthStateChanged(auth, user => {
+            setAutenticado(!!user);
             setVerificandoSessao(false);
-        }
-    }
+            if (!user) router.replace('/login');
+        });
+        return unsubscribe;
+    }, []);
 
     if (verificandoSessao) {
         return (

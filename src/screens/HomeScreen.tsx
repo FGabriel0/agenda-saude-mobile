@@ -16,7 +16,8 @@ import NextCampaign from '../components/Home/NextCampaign';
 import QuickAccess from '../components/Home/QuickAccess';
 
 import { COLORS } from '@/styles/theme';
-import { supabase } from '../lib/supabase';
+import { signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 // Tela inicial do Projeto
 const HomeScreen = () => {
@@ -26,16 +27,7 @@ const HomeScreen = () => {
     try {
       setSaindo(true);
 
-      const { error } =
-        await supabase.auth.signOut();
-
-      if (error) {
-        console.error(
-          'Erro ao sair da conta:',
-          error
-        );
-        return;
-      }
+      await signOut(auth);
 
       router.replace('/login');
     } catch (error) {

@@ -1,4 +1,3 @@
-import { supabase } from '../lib/supabase';
 
 export type HealthUnit = {
     id: number;
@@ -24,63 +23,26 @@ export type Campaign = {
     health_units: HealthUnit[];
 };
 
-export async function getCampaignsByDate(
-    date: Date
-): Promise<Campaign[]> {
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
-    // Início do dia selecionado
-    const inicioDoDia = new Date(date);
-    inicioDoDia.setHours(0, 0, 0, 0);
-
-    // Início do dia seguinte
-    const fimDoDia = new Date(date);
-    fimDoDia.setDate(fimDoDia.getDate() + 1);
-    fimDoDia.setHours(0, 0, 0, 0);
-
-    const { data, error } = await supabase
-        .from('campaigns')
-        .select(`
-            id,
-            title,
-            description,
-            category,
-            start_at,
-            end_at,
-            appointment_required,
-            health_unit_id,
-            health_units (
-                id,
-                name,
-                type,
-                address,
-                city,
-                state,
-                latitude,
-                longitude,
-                opening_hours
-            )
-        `)
-        .gte(
-            'start_at',
-            inicioDoDia.toISOString()
-        )
-        .lt(
-            'start_at',
-            fimDoDia.toISOString()
-        )
-        .order(
-            'start_at',
-            { ascending: true }
-        );
-
-    if (error) {
-        console.error(
-            'Erro ao buscar campanhas:',
-            error
-        );
-
-        throw error;
-    }
-
-    return data ?? [];
+export async function getCampaignsByDate(date: Date): Promise<Campaign[]> {
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    const snapshot = await getDocs(query(collection(db, 'campaigns'),
+        where('start_at', '>=', start.toISOString()),
+        where('start_at', '<', end.toISOString()),
+        orderBy('start_at', 'asc')));
+    const campaigns = snapshot.docs.map(doc => doc.data() as Omit<Campaign, 'health_units'>);
+    const units = new Map<number, HealthUnit>();
+    const unitIds = [...new Set(campaigns.map(c => c.health_unit_id).filter((id): id is number => id !== null))];
+    // Fetch by document ID, avoiding a Firestore collection-wide read.
+    await Promise.all(unitIds.map(async id => {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const unit = await getDoc(doc(db, 'health_units', String(id)));
+        if (unit.exists()) units.set(id, unit.data() as HealthUnit);
+    }));
+    return campaigns.map(c => ({ ...c, health_units: c.health_unit_id !== null && units.has(c.health_unit_id) ? [units.get(c.health_unit_id)!] : [] }));
 }
