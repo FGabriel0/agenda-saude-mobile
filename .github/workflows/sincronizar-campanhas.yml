@@ -3,14 +3,9 @@ name: Sincronizar campanhas de saude
 
 on:
   workflow_dispatch:
-    inputs:
-      gravar_firestore:
-        description: "Gravar campanhas no Firebase?"
-        required: true
-        type: boolean
-        default: false
 
   schedule:
+    # 10:00 UTC = 07:00 em Fortaleza
     - cron: "0 10 * * *"
 
 permissions:
@@ -43,6 +38,6 @@ jobs:
       - name: Executar sincronizacao
         working-directory: functions
         env:
+          GRAVAR_FIRESTORE: "true"
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          GRAVAR_FIRESTORE: ${{ github.event_name == 'workflow_dispatch' && inputs.gravar_firestore && 'true' || 'false' }}
         run: node sincronizar-campanhas.cjs
