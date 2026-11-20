@@ -1,71 +1,91 @@
-import { router } from 'expo-router';
+
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
 import {
   ActivityIndicator,
   StyleSheet,
   View,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import HomeScreen from '@/screens/HomeScreen';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../src/lib/firebase';
+import { auth, authReady } from '../src/lib/firebase';
+import HomeScreen from '../src/screens/HomeScreen';
 import { COLORS } from '../src/styles/theme';
 
 export default function Page() {
-    const [verificandoSessao, setVerificandoSessao] =
-        useState(true);
+  const [verificando, setVerificando] = useState(true);
+  const [autenticado, setAutenticado] = useState(false);
 
-    const [autenticado, setAutenticado] =
-        useState(false);
+  useEffect(() => {
+    let ativo = true;
+    let unsubscribe: (() => void) | undefined;
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, user => {
-            setAutenticado(!!user);
-            setVerificandoSessao(false);
-            if (!user) router.replace('/login');
-        });
-        return unsubscribe;
-    }, []);
+    async function verificarSessao() {
+      try {
+        await authReady;
 
-    if (verificandoSessao) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator
-                    size="large"
-                    color={COLORS.primary}
-                />
-            </View>
+        if (!ativo) return;
+
+        unsubscribe = onAuthStateChanged(
+          auth,
+          (usuario) => {
+            if (!ativo) return;
+
+            if (!usuario) {
+              setAutenticado(false);
+              router.replace('/login');
+            } else {
+              setAutenticado(true);
+            }
+
+            setVerificando(false);
+          }
         );
+      } catch (error) {
+        console.error('Erro ao verificar sessão:', error);
+
+        if (ativo) {
+          setVerificando(false);
+          router.replace('/login');
+        }
+      }
     }
 
-    if (!autenticado) {
-        return (
-            <View
-                style={styles.loadingContainer}
-            />
-        );
-    }
+    verificarSessao();
 
+    return () => {
+      ativo = false;
+      unsubscribe?.();
+    };
+  }, []);
+
+  if (verificando || !autenticado) {
     return (
-        <SafeAreaView style={styles.container}>
-            <HomeScreen />
-        </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator
+          size="large"
+          color={COLORS.primary}
+        />
+      </View>
     );
+  }
+
+  return (
+    <View style={styles.container}>
+      <HomeScreen />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        padding: 24,
-    },
-
-    loadingContainer: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

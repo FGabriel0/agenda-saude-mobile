@@ -10,7 +10,7 @@ export interface Appointment {
   cor: string;
 }
 
-import { COLORS } from "@/styles/theme";
+import { COLORS } from "../styles/theme";
 
 export const appointments: Appointment[] = [
   {

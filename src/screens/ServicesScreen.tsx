@@ -1,24 +1,23 @@
-import React from 'react';
 
 import {
-  ScrollView,
-  View,
-  StyleSheet,
+    ScrollView,
+    StyleSheet,
+    View,
 } from 'react-native';
 
 import SearchService from '../components/Search/SearchService';
+import HealthUnitCard from '../components/Services/HealthUnitCard';
+import NearbyHeader from '../components/Services/NearbyHeader';
 import ServiceMap from '../components/Services/ServiceMap';
 import ServiceTypes from '../components/Services/ServiceTypes';
-import NearbyHeader from '../components/Services/NearbyHeader';
-import HealthUnitCard from '../components/Services/HealthUnitCard';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { router } from 'expo-router';
 
-import BottomNavigation from '@/components/Home/BottomNavigation';
+import BottomNavigation from '../components/Home/BottomNavigation';
 
-import Header from '@/components/Home/Header';
+import Header from '../components/Home/Header';
 
 export default function ServicosScreen() {
   return (
@@ -54,7 +53,6 @@ export default function ServicosScreen() {
             status="ABERTO"
             distance="1,2 km"
             information="Centro • até 17h"
-            onPress={() => router.push('/campanha')}
           />
 
           <HealthUnitCard

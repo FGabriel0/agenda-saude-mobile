@@ -1,5 +1,5 @@
-import ServicosScreen from "@/screens/ServicesScreen";
 import { StyleSheet } from "react-native";
+import ServicosScreen from "../src/screens/ServicesScreen";
 
 
 import { SafeAreaView } from 'react-native-safe-area-context';

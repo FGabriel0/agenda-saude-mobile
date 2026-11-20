@@ -14,10 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../styles/theme';
 
 
-import BottomNavigation from '@/components/Home/BottomNavigation';
+import BottomNavigation from '../components/Home/BottomNavigation';
 
 
 export default function CampanhaScreen() {

@@ -1,5 +1,5 @@
-import InformarScreen from "@/screens/InformarScreen";
 import { StyleSheet } from "react-native";
+import InformarScreen from "../src/screens/InformarScreen";
 
 
 import { SafeAreaView } from 'react-native-safe-area-context';

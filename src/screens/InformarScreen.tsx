@@ -1,28 +1,22 @@
-import React from 'react';
 
 import {
-  ScrollView,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
+    ScrollView,
+    StyleSheet,
+    View
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Ionicons } from '@expo/vector-icons';
 
-import BottomNavigation from '@/components/Home/BottomNavigation';
+import BottomNavigation from '../components/Home/BottomNavigation';
 
-import { COLORS } from '@/styles/theme';
-import Header from '@/components/Home/Header';
-import ArticleCard from '@/components/Infor/ArticleCard';
-import EmergencyHelp from '@/components/Infor/EmergencyHelp';
-import RecentContentHeader from '@/components/Infor/RecentContentHeader';
-import InformationTopics from '@/components/Infor/InformationTopics';
-import PreventionCard from '@/components/Infor/PreventionCard';
+import Header from '../components/Home/Header';
+import ArticleCard from '../components/Infor/ArticleCard';
+import EmergencyHelp from '../components/Infor/EmergencyHelp';
+import InformationTopics from '../components/Infor/InformationTopics';
+import PreventionCard from '../components/Infor/PreventionCard';
+import RecentContentHeader from '../components/Infor/RecentContentHeader';
 
-import { router } from 'expo-router';
 
 export default function InformarScreen() {
   return (
@@ -56,7 +50,6 @@ export default function InformarScreen() {
             category="VACINAÇÃO"
             title="Por que manter a caderneta atualizada?"
             description="Saiba quais doses acompanhar em cada fase da vida."
-            onPress={() => router.push('/campanha')}
           />
 
           <ArticleCard

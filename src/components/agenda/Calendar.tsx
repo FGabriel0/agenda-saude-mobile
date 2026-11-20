@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
-import { COLORS } from '@/styles/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { COLORS } from '../../styles/theme';
 
 type CalendarProps = {
   onDateChange?: (date: Date) => void;

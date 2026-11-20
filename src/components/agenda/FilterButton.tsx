@@ -1,11 +1,10 @@
-import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
 } from 'react-native';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../../styles/theme';
 
 interface FilterButtonProps {
   title: string;

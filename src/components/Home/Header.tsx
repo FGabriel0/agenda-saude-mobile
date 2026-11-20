@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../../styles/theme';
 
 interface HeaderProps{
   title:string,

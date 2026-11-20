@@ -15,7 +15,7 @@ import Header from '../components/Home/Header';
 import NextCampaign from '../components/Home/NextCampaign';
 import QuickAccess from '../components/Home/QuickAccess';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../styles/theme';
 import { signOut } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 

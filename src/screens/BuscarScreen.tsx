@@ -1,22 +1,21 @@
-import React from 'react';
 import {
-  ScrollView,
-  View,
-  Text,
-  StyleSheet,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import SearchInput from '../components/Search/SearchInput';
 import SearchCategories from '../components/Search/SearchCategories';
 import SearchFilters from '../components/Search/SearchFilters';
+import SearchInput from '../components/Search/SearchInput';
 import SearchResultCard from '../components/Search/SearchResultCard';
 
 
-import BottomNavigation from '@/components/Home/BottomNavigation';
+import BottomNavigation from '../components/Home/BottomNavigation';
 
-import Header from '@/components/Home/Header';
+import Header from '../components/Home/Header';
 
 export default function BuscarScreen() {
   return (

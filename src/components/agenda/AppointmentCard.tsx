@@ -1,11 +1,11 @@
 import {
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../../styles/theme';
 
 interface AppointmentCardProps {
   horario: string;

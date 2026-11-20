@@ -11,7 +11,7 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { COLORS } from '@/styles/theme';
+import { COLORS } from '../styles/theme';
 
 import AppointmentCard from '../components/agenda/AppointmentCard';
 import Calendar from '../components/agenda/Calendar';

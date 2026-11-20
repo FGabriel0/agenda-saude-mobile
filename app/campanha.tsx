@@ -4,7 +4,7 @@ import { StyleSheet } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
-import CampanhaScreen from "@/screens/CampanhaScreen"
+import CampanhaScreen from "../src/screens/CampanhaScreen"
 
 export default function Page() {
 

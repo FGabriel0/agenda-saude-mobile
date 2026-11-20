@@ -1,5 +1,5 @@
-import BuscarScreen from "@/screens/BuscarScreen";
 import { StyleSheet } from "react-native";
+import BuscarScreen from "../src/screens/BuscarScreen";
 
 
 import { SafeAreaView } from 'react-native-safe-area-context';
