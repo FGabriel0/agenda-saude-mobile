@@ -1,0 +1,47 @@
+﻿name: Sincronizar campanhas de saude
+
+on:
+  workflow_dispatch:
+    inputs:
+      gravar_firestore:
+        description: "Gravar campanhas no Firebase?"
+        required: true
+        type: boolean
+        default: false
+
+  schedule:
+    - cron: "0 10 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sincronizar-campanhas
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Instalar dependencias
+        working-directory: functions
+        run: npm ci
+
+      - name: Executar sincronizacao
+        working-directory: functions
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GRAVAR_FIRESTORE: ${{ github.event_name == 'workflow_dispatch' && inputs.gravar_firestore && 'true' || 'false' }}
+        run: node sincronizar-campanhas.cjs
