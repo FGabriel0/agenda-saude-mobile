@@ -1,4 +1,5 @@
-﻿name: Sincronizar campanhas de saude
+﻿
+name: Sincronizar campanhas de saude
 
 on:
   workflow_dispatch:
