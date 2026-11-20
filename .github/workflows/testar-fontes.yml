@@ -1,0 +1,26 @@
+
+name: Testar fontes de campanhas
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testar-fontes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Testar Prefeitura de Fortaleza
+        run: |
+          node -e "fetch('https://www.fortaleza.ce.gov.br/noticias/categoria/saude').then(r => console.log('Fortaleza:', r.status)).catch(e => { console.error(e); process.exitCode = 1; })"
+
+      - name: Testar Secretaria da Saude do Ceara
+        run: |
+          node -e "fetch('https://www.saude.ce.gov.br/').then(r => console.log('Ceara:', r.status)).catch(e => { console.error(e); process.exitCode = 1; })"
