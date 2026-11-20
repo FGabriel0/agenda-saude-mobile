@@ -1,76 +1,70 @@
 
 const { createHash } = require("node:crypto");
 const cheerio = require("cheerio");
-const { initializeApp, cert } = require("firebase-admin/app");
-const {
-  getFirestore,
-  FieldValue,
-} = require("firebase-admin/firestore");
+const { initializeApp, cert, getApps } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+
+const PROJETO = "agenda-saude-4ea5b";
 
 const FONTES = [
   {
     nome: "Prefeitura de Fortaleza",
+    url: "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?format=feed&type=rss",
+    tipo: "rss",
+    dominio: "fortaleza.ce.gov.br",
     abrangencia: "municipal",
     cidade: "Fortaleza",
-    urls: [
-      "https://www.fortaleza.ce.gov.br/noticias/categoria/saude",
-      "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?start=10",
-      "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?start=20",
-      "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?start=30",
-      "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?start=40",
-    ],
-    dominio: "fortaleza.ce.gov.br",
+    estado: "CE"
   },
   {
     nome: "Secretaria da Saúde do Ceará",
+    url: "https://www.saude.ce.gov.br/",
+    tipo: "html",
+    dominio: "saude.ce.gov.br",
     abrangencia: "estadual",
     cidade: null,
-    urls: [
-      "https://www.saude.ce.gov.br/",
-      "https://www.saude.ce.gov.br/category/noticias/",
-    ],
-    dominio: "saude.ce.gov.br",
-  },
+    estado: "CE"
+  }
 ];
 
-const TERMOS_CAMPANHA = [
+const TERMOS = [
   "campanha de vacinacao",
-  "campanha nacional",
-  "campanha estadual",
   "campanha de saude",
   "campanha de prevencao",
-  "campanha de multivacinacao",
+  "campanha nacional",
+  "campanha estadual",
   "campanha contra",
   "campanha do",
   "campanha da",
+  "multivacinacao",
   "mutirao de saude",
   "mutirao de atendimento",
   "mutirao de exames",
   "mutirao de cirurgias",
   "dia d de vacinacao",
   "dia d da vacinacao",
-  "novembro azul",
   "outubro rosa",
+  "novembro azul",
   "setembro amarelo",
-  "setembro verde",
+  "setembro verde"
 ];
 
-const TERMOS_EXCLUSAO = [
+const EXCLUSOES = [
   "encerra",
   "encerrada",
   "balanco",
   "resultado",
   "prestacao de contas",
-  "funcionamento dos servicos",
   "feriado",
+  "funcionamento dos servicos",
   "inaugura",
   "entrega de",
   "licitacao",
-  "concurso publico",
+  "concurso publico"
 ];
 
-function normalizar(texto) {
-  return String(texto || "")
+function normalizar(valor) {
+  return String(valor || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -78,20 +72,33 @@ function normalizar(texto) {
     .trim();
 }
 
-function ehCandidata(titulo) {
+function limpar(valor) {
+  return String(valor || "").replace(/\s+/g, " ").trim();
+}
+
+function ehCampanha(titulo) {
   const texto = normalizar(titulo);
 
-  if (texto.length < 20 || texto.length > 220) {
-    return false;
-  }
+  if (texto.length < 20 || texto.length > 220) return false;
+  if (EXCLUSOES.some(t => texto.includes(t))) return false;
 
-  if (TERMOS_EXCLUSAO.some((termo) => texto.includes(termo))) {
-    return false;
-  }
+  return TERMOS.some(t => texto.includes(t));
+}
 
-  return TERMOS_CAMPANHA.some((termo) =>
-    texto.includes(termo)
-  );
+function urlValida(href, base, dominio) {
+  try {
+    const url = new URL(href, base);
+
+    if (url.protocol !== "https:") return null;
+    if (url.hostname.replace(/^www\./, "") !== dominio) return null;
+
+    url.hash = "";
+    url.search = "";
+
+    return url.toString();
+  } catch {
+    return null;
+  }
 }
 
 function gerarId(url) {
@@ -101,17 +108,13 @@ function gerarId(url) {
     .slice(0, 32);
 }
 
-function limparTitulo(titulo) {
-  return titulo.replace(/\s+/g, " ").trim();
-}
-
-async function baixarPagina(url) {
+async function baixar(url) {
   const resposta = await fetch(url, {
     headers: {
       "User-Agent": "AgendaSaude/1.0",
-      Accept: "text/html",
+      Accept: "application/rss+xml, application/xml, text/html"
     },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(20000)
   });
 
   if (!resposta.ok) {
@@ -121,57 +124,78 @@ async function baixarPagina(url) {
   return resposta.text();
 }
 
-function extrairLinks(html, fonte, pagina) {
-  const $ = cheerio.load(html);
-  const encontrados = new Map();
+function extrairRSS(xml, fonte) {
+  const $ = cheerio.load(xml, { xmlMode: true });
+  const itens = $("channel > item");
+  const campanhas = new Map();
 
-  // Seleciona títulos de notícias, evitando o texto
-  // de menus, rodapés e blocos administrativos.
-  $("h1 a, h2 a, h3 a, .item-title a, .entry-title a")
+  console.log(`Notícias disponíveis: ${itens.length}`);
+
+  itens.each((_, elemento) => {
+    const item = $(elemento);
+
+    const titulo = limpar(item.find("title").first().text());
+    const link = limpar(item.find("link").first().text());
+    const dataTexto = limpar(item.find("pubDate").first().text());
+
+    if (!ehCampanha(titulo)) return;
+
+    const url = urlValida(link, fonte.url, fonte.dominio);
+    if (!url) return;
+
+    const data = dataTexto ? new Date(dataTexto) : null;
+
+    campanhas.set(url, {
+      titulo,
+      url,
+      fonte: fonte.nome,
+      abrangencia: fonte.abrangencia,
+      cidade: fonte.cidade,
+      estado: fonte.estado,
+      dataPublicacao:
+        data && !Number.isNaN(data.getTime()) ? data : null
+    });
+  });
+
+  return [...campanhas.values()];
+}
+
+function extrairHTML(html, fonte) {
+  const $ = cheerio.load(html);
+  const campanhas = new Map();
+
+  $("h1 a, h2 a, h3 a, .entry-title a, .item-title a")
     .each((_, elemento) => {
-      const titulo = limparTitulo($(elemento).text());
+      const titulo = limpar($(elemento).text());
       const href = $(elemento).attr("href");
 
-      if (!href || !ehCandidata(titulo)) {
+      if (!href || !ehCampanha(titulo)) return;
+
+      const url = urlValida(href, fonte.url, fonte.dominio);
+      if (!url) return;
+
+      const caminho = new URL(url).pathname;
+
+      if (
+        caminho === "/" ||
+        caminho.includes("/category/") ||
+        caminho.includes("/noticias/categoria/")
+      ) {
         return;
       }
 
-      let url;
-
-      try {
-        url = new URL(href, pagina);
-      } catch {
-        return;
-      }
-
-      const hostname = url.hostname.replace(/^www\./, "");
-
-      if (hostname !== fonte.dominio) {
-        return;
-      }
-
-      if (url.pathname === "/" || url.pathname.includes("/category/")) {
-        return;
-      }
-
-      if (url.pathname.includes("/noticias/categoria/")) {
-        return;
-      }
-
-      url.hash = "";
-      url.search = "";
-
-      encontrados.set(url.toString(), {
+      campanhas.set(url, {
         titulo,
-        url: url.toString(),
+        url,
         fonte: fonte.nome,
         abrangencia: fonte.abrangencia,
         cidade: fonte.cidade,
-        estado: "CE",
+        estado: fonte.estado,
+        dataPublicacao: null
       });
     });
 
-  return [...encontrados.values()];
+  return [...campanhas.values()];
 }
 
 async function buscarCampanhas() {
@@ -180,26 +204,24 @@ async function buscarCampanhas() {
   for (const fonte of FONTES) {
     console.log(`\nConsultando: ${fonte.nome}`);
 
-    for (const pagina of fonte.urls) {
-      try {
-        const html = await baixarPagina(pagina);
-        const encontradas = extrairLinks(
-          html,
-          fonte,
-          pagina
-        );
+    try {
+      const conteudo = await baixar(fonte.url);
 
-        console.log(
-          `Página consultada: ${encontradas.length} candidatas`
-        );
+      const campanhas =
+        fonte.tipo === "rss"
+          ? extrairRSS(conteudo, fonte)
+          : extrairHTML(conteudo, fonte);
 
-        for (const campanha of encontradas) {
-          todas.set(campanha.url, campanha);
-        }
-      } catch (erro) {
-        console.warn(
-          `Falha na consulta ${pagina}: ${erro.message}`
-        );
+      console.log(`Candidatas encontradas: ${campanhas.length}`);
+
+      for (const campanha of campanhas) {
+        todas.set(campanha.url, campanha);
+      }
+    } catch (erro) {
+      console.warn(`Falha na fonte ${fonte.nome}: ${erro.message}`);
+
+      if (erro.cause?.code) {
+        console.warn(`Causa: ${erro.cause.code}`);
       }
     }
   }
@@ -207,71 +229,50 @@ async function buscarCampanhas() {
   return [...todas.values()];
 }
 
-async function executar() {
-  console.log("Agenda Saúde — Sincronização CE/Fortaleza");
+function conectarFirebase() {
+  const segredo = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-  const campanhas = await buscarCampanhas();
-
-  console.log(
-    `\nTotal de publicações candidatas: ${campanhas.length}`
-  );
-
-  for (const campanha of campanhas) {
-    console.log(`\n[${campanha.abrangencia}] ${campanha.titulo}`);
-    console.log(campanha.url);
+  if (!segredo) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT não configurado.");
   }
 
-  // Prévia por padrão. A gravação exige autorização
-  // explícita por variável de ambiente.
-  const gravar = process.env.GRAVAR_FIRESTORE === "true";
+  let conta;
 
-  if (!gravar) {
-    console.log(
-      "\nMODO PRÉVIA: nenhuma gravação foi realizada."
-    );
-    return;
+  try {
+    conta = JSON.parse(segredo);
+  } catch {
+    throw new Error("Credenciais Firebase não contêm JSON válido.");
   }
 
-  if (campanhas.length === 0) {
-    throw new Error(
-      "Nenhuma candidata encontrada. Gravação cancelada."
-    );
-  }
-
-  const credenciais = process.env.FIREBASE_SERVICE_ACCOUNT;
-
-  if (!credenciais) {
-    throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT não configurado."
-    );
-  }
-
-  const conta = JSON.parse(credenciais);
-
-  if (conta.project_id !== "agenda-saude-4ea5b") {
+  if (conta.project_id !== PROJETO) {
     throw new Error("Projeto Firebase incorreto.");
   }
 
-  initializeApp({
-    credential: cert(conta),
-  });
+  if (!getApps().length) {
+    initializeApp({ credential: cert(conta) });
+  }
 
-  const db = getFirestore();
+  return getFirestore();
+}
+
+async function gravarCampanhas(campanhas) {
+  const db = conectarFirebase();
 
   let adicionadas = 0;
   let existentes = 0;
+  let falhas = 0;
 
   for (const campanha of campanhas) {
     const id = `ce_${gerarId(campanha.url)}`;
-    const ref = db.collection("campaigns").doc(id);
+    const referencia = db.collection("campaigns").doc(id);
 
     try {
-      await ref.create({
+      await referencia.create({
         title: campanha.titulo,
         description:
-          "Publicação identificada automaticamente. " +
-          "Consulte a fonte oficial para verificar " +
-          "datas, locais e disponibilidade.",
+          "Publicação identificada automaticamente em fonte oficial. " +
+          "Consulte a notícia original para verificar datas, " +
+          "locais e disponibilidade.",
 
         source: campanha.fonte,
         sourceUrl: campanha.url,
@@ -281,33 +282,78 @@ async function executar() {
         city: campanha.cidade,
         state: campanha.estado,
 
+        publishedAt: campanha.dataPublicacao,
+
         status: "pending_review",
         isPublished: false,
         isBookable: false,
 
         createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
       });
 
       adicionadas++;
+      console.log(`Adicionada: ${campanha.titulo}`);
     } catch (erro) {
-      if (erro.code === 6 || erro.code === "already-exists") {
+      if (
+        erro.code === 6 ||
+        erro.code === "already-exists"
+      ) {
         existentes++;
       } else {
-        throw erro;
+        falhas++;
+        console.error(
+          `Falha ao gravar "${campanha.titulo}": ${erro.message}`
+        );
       }
     }
   }
 
-  console.log("\nSincronização concluída:");
+  console.log("\nResultado:");
   console.log({
     encontradas: campanhas.length,
     adicionadas,
     existentes,
+    falhas
   });
+
+  if (falhas > 0) {
+    throw new Error(`${falhas} registros falharam.`);
+  }
 }
 
-executar().catch((erro) => {
+async function executar() {
+  console.log("====================================");
+  console.log("AGENDA SAÚDE");
+  console.log("Sincronização de campanhas CE/Fortaleza");
+  console.log("====================================");
+
+  const campanhas = await buscarCampanhas();
+
+  console.log(`\nTotal de candidatas: ${campanhas.length}`);
+
+  for (const campanha of campanhas) {
+    console.log(`\n${campanha.titulo}`);
+    console.log(campanha.url);
+  }
+
+  if (process.env.GRAVAR_FIRESTORE !== "true") {
+    console.log("\nMODO PRÉVIA: nenhuma gravação realizada.");
+    return;
+  }
+
+  if (campanhas.length === 0) {
+    throw new Error(
+      "Nenhuma campanha encontrada. Gravação cancelada."
+    );
+  }
+
+  await gravarCampanhas(campanhas);
+
+  console.log("\nSincronização concluída.");
+}
+
+executar().catch(erro => {
   console.error("Erro:", erro.message);
   process.exitCode = 1;
 });
