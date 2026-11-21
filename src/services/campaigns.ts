@@ -160,15 +160,7 @@ export async function getCampaignsByDate(
         campanha.start_at
       );
 
-      console.log('Verificando campanha:', {
-        titulo: campanha.title,
-        firestoreId: campanha.firestoreId,
-        start_at: campanha.start_at,
-        diaCampanha,
-        diaSelecionado,
-      });
-
-      return diaCampanha === diaSelecionado;
+      return campanha.isPublished && diaCampanha === diaSelecionado;
     });
 
   const idsUnidades = [
@@ -223,7 +215,8 @@ export async function getPublishedOfficialCampaigns():
     .filter(
       documento =>
         documento.data().sourceType ===
-        'official_news'
+        'official_news' &&
+        documento.data().isPublished === true
     )
     .map(documento => {
       const dados = documento.data();
@@ -237,8 +230,8 @@ export async function getPublishedOfficialCampaigns():
         city: texto(dados.city),
         state: texto(dados.state),
         status: texto(dados.status) ?? '',
-        isPublished: true,
-        isBookable: true,
+        isPublished: dados.isPublished === true,
+        isBookable: dados.isBookable === true,
       };
     });
 }

@@ -104,6 +104,8 @@ export default function HomeScreen() {
           .map(documento => {
             const dados = documento.data();
 
+            if (dados.isPublished !== true) return null;
+
             const inicio = converterData(
               dados.start_at
             );
@@ -123,7 +125,9 @@ export default function HomeScreen() {
               unidade: texto(dados.location),
             };
           })
-          .filter(campanha => campanha.inicio !== '')
+          .filter((campanha): campanha is CampanhaHome =>
+            campanha !== null && campanha.inicio !== ''
+          )
           .sort(
             (a, b) =>
               new Date(a.inicio).getTime() -

@@ -540,9 +540,9 @@ function extractHTML(html, source) {
 async function extractWordPress(source) {
   const result = new Map();
 
-  const MAX_PAGES = 3;
+  const MAX_PAGES = 10;
   const PER_PAGE = 50;
-  const MAX_AGE_DAYS = 120;
+  const MAX_AGE_DAYS = 365;
 
   const cutoff =
     Date.now() - MAX_AGE_DAYS * 86400000;
@@ -620,10 +620,11 @@ async function extractWordPress(source) {
       });
     }
 
-    if (posts.length < PER_PAGE) break;
-
-    // Interrompe páginas antigas quando a ordenação é recente.
-    if (oldestDate < cutoff) break;
+    // Encerra somente quando a API retornar
+    // menos notícias do que o tamanho solicitado.
+    if (posts.length < PER_PAGE) {
+      break;
+    }
   }
 
   return [...result.values()];
@@ -864,14 +865,27 @@ async function saveCampaigns(campaigns) {
             return 'unchanged';
           }
 
-          if (!extra) return 'unchanged';
+           if (!extra) return 'unchanged';
 
-          transaction.update(ref, {
-            ...extra,
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+            const camposComparaveis = Object.keys(extra).filter(
+              campo => campo !== 'extractedAt'
+            );
 
-          return 'updated';
+            const houveAlteracao = camposComparaveis.some(campo => {
+              return JSON.stringify(existing[campo] ?? null) !==
+                JSON.stringify(extra[campo] ?? null);
+            });
+
+            if (!houveAlteracao) {
+              return 'unchanged';
+            }
+
+            transaction.update(ref, {
+              ...extra,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+
+            return 'updated';
         }
       );
 
