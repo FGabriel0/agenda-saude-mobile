@@ -8,19 +8,27 @@ permissions:
   contents: read
 
 jobs:
-  testar-fontes:
+  testar:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
 
-      - name: Testar Prefeitura de Fortaleza
-        run: |
-          node -e "fetch('https://www.fortaleza.ce.gov.br/noticias/categoria/saude').then(r => console.log('Fortaleza:', r.status)).catch(e => { console.error(e); process.exitCode = 1; })"
+      - name: Instalar dependencias
+        working-directory: functions
+        run: npm ci
 
-      - name: Testar Secretaria da Saude do Ceara
-        run: |
-          node -e "fetch('https://www.saude.ce.gov.br/').then(r => console.log('Ceara:', r.status)).catch(e => { console.error(e); process.exitCode = 1; })"
+      - name: Testar fontes sem gravar
+        working-directory: functions
+        env:
+          GRAVAR_FIRESTORE: "false"
+        run: node sincronizar-campanhas.cjs

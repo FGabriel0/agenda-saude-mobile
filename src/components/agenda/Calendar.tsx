@@ -1,205 +1,211 @@
-import { useState } from 'react';
-import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { COLORS } from '../../styles/theme';
 
 type CalendarProps = {
+  selectedDate?: Date;
   onDateChange?: (date: Date) => void;
 };
 
 const meses = [
-  'Janeiro',
-  'Fevereiro',
-  'Março',
-  'Abril',
-  'Maio',
-  'Junho',
-  'Julho',
-  'Agosto',
-  'Setembro',
-  'Outubro',
-  'Novembro',
-  'Dezembro',
+  'Janeiro', 'Fevereiro', 'Março', 'Abril',
+  'Maio', 'Junho', 'Julho', 'Agosto',
+  'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
 
-const diasSemana = [
-  'D',
-  'S',
-  'T',
-  'Q',
-  'Q',
-  'S',
-  'S',
-];
+const diasSemana = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+function mesmoDia(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 export default function Calendar({
+  selectedDate,
   onDateChange,
 }: CalendarProps) {
-  const [mesAtual, setMesAtual] = useState(8);
-  const [anoAtual, setAnoAtual] = useState(2026);
-  const [diaSelecionado, setDiaSelecionado] =
-    useState(14);
+  const [hoje, setHoje] = useState(() => new Date());
 
-  function mesAnterior() {
-    if (mesAtual === 0) {
-      setMesAtual(11);
-      setAnoAtual((ano) => ano - 1);
-    } else {
-      setMesAtual((mes) => mes - 1);
-    }
-  }
+  const [dataInterna, setDataInterna] = useState(
+    () => selectedDate ?? new Date()
+  );
 
-  function proximoMes() {
-    if (mesAtual === 11) {
-      setMesAtual(0);
-      setAnoAtual((ano) => ano + 1);
-    } else {
-      setMesAtual((mes) => mes + 1);
-    }
+  const dataSelecionada = selectedDate ?? dataInterna;
+
+  const [mesVisivel, setMesVisivel] = useState(
+    () => new Date(
+      dataSelecionada.getFullYear(),
+      dataSelecionada.getMonth(),
+      1
+    )
+  );
+
+  useEffect(() => {
+    setMesVisivel(
+      new Date(
+        dataSelecionada.getFullYear(),
+        dataSelecionada.getMonth(),
+        1
+      )
+    );
+  }, [
+    dataSelecionada.getFullYear(),
+    dataSelecionada.getMonth(),
+  ]);
+
+  useEffect(() => {
+    const intervalo = setInterval(() => {
+      setHoje(new Date());
+    }, 60000);
+
+    return () => clearInterval(intervalo);
+  }, []);
+
+  function mudarMes(diferenca: number) {
+    setMesVisivel(anterior =>
+      new Date(
+        anterior.getFullYear(),
+        anterior.getMonth() + diferenca,
+        1
+      )
+    );
   }
 
   function selecionarDia(dia: number) {
-    setDiaSelecionado(dia);
-
     const data = new Date(
-      anoAtual,
-      mesAtual,
+      mesVisivel.getFullYear(),
+      mesVisivel.getMonth(),
       dia
     );
 
+    setDataInterna(data);
     onDateChange?.(data);
   }
 
-  function gerarDiasDoMes() {
-    const primeiroDia = new Date(
-      anoAtual,
-      mesAtual,
-      1
-    ).getDay();
-
-    const quantidadeDias = new Date(
-      anoAtual,
-      mesAtual + 1,
-      0
-    ).getDate();
-
-    const dias: (number | null)[] = [];
-
-    for (let i = 0; i < primeiroDia; i++) {
-      dias.push(null);
-    }
-
-    for (
-      let dia = 1;
-      dia <= quantidadeDias;
-      dia++
-    ) {
-      dias.push(dia);
-    }
-
-    while (dias.length % 7 !== 0) {
-      dias.push(null);
-    }
-
-    return dias;
+  function voltarParaHoje() {
+    const agora = new Date();
+    setHoje(agora);
+    setDataInterna(agora);
+    setMesVisivel(
+      new Date(agora.getFullYear(), agora.getMonth(), 1)
+    );
+    onDateChange?.(agora);
   }
 
-  const dias = gerarDiasDoMes();
+  const ano = mesVisivel.getFullYear();
+  const mes = mesVisivel.getMonth();
+
+  const primeiroDia = new Date(ano, mes, 1).getDay();
+  const quantidadeDias = new Date(ano, mes + 1, 0).getDate();
+
+  const dias: (number | null)[] = [
+    ...Array.from({ length: primeiroDia }, () => null),
+    ...Array.from(
+      { length: quantidadeDias },
+      (_, indice) => indice + 1
+    ),
+  ];
+
+  while (dias.length % 7 !== 0) {
+    dias.push(null);
+  }
 
   return (
     <View style={styles.calendar}>
-
-      {/* Cabeçalho */}
       <View style={styles.calendarHeader}>
-
-        <TouchableOpacity onPress={mesAnterior}>
+        <TouchableOpacity onPress={() => mudarMes(-1)}>
           <Ionicons
             name="chevron-back"
-            size={16}
+            size={20}
             color={COLORS.primary}
           />
         </TouchableOpacity>
 
         <Text style={styles.month}>
-          {meses[mesAtual]} {anoAtual}
+          {meses[mes]} {ano}
         </Text>
 
-        <TouchableOpacity onPress={proximoMes}>
+        <TouchableOpacity onPress={() => mudarMes(1)}>
           <Ionicons
             name="chevron-forward"
-            size={16}
-            color={COLORS.primaryDark}
+            size={20}
+            color={COLORS.primary}
           />
         </TouchableOpacity>
-
       </View>
 
-      {/* Dias da semana */}
+      <TouchableOpacity
+        onPress={voltarParaHoje}
+        style={styles.todayButton}
+      >
+        <Text style={styles.todayButtonText}>Ir para hoje</Text>
+      </TouchableOpacity>
+
       <View style={styles.week}>
-        {diasSemana.map((dia, index) => (
-          <Text
-            key={index}
-            style={styles.weekDay}
-          >
+        {diasSemana.map((dia, indice) => (
+          <Text key={indice} style={styles.weekDay}>
             {dia}
           </Text>
         ))}
       </View>
 
-      {/* Dias */}
       <View style={styles.daysGrid}>
-
-        {dias.map((dia, index) => {
+        {dias.map((dia, indice) => {
+          const data = dia === null
+            ? null
+            : new Date(ano, mes, dia);
 
           const selecionado =
-            dia === diaSelecionado;
+            data !== null &&
+            mesmoDia(data, dataSelecionada);
+
+          const ehHoje =
+            data !== null &&
+            mesmoDia(data, hoje);
 
           return (
             <TouchableOpacity
-              key={index}
+              key={indice}
               disabled={dia === null}
               onPress={() => {
-                if (dia !== null) {
-                  selecionarDia(dia);
-                }
+                if (dia !== null) selecionarDia(dia);
               }}
               style={[
                 styles.dayContainer,
-                selecionado &&
-                  styles.selectedDay,
+                ehHoje && styles.today,
+                selecionado && styles.selectedDay,
               ]}
             >
-
               {dia !== null && (
                 <Text
                   style={[
                     styles.day,
-                    selecionado &&
-                      styles.selectedText,
+                    ehHoje && styles.todayText,
+                    selecionado && styles.selectedText,
                   ]}
                 >
                   {dia}
                 </Text>
               )}
-
             </TouchableOpacity>
           );
         })}
-
       </View>
-
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-
   calendar: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -207,59 +213,68 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     padding: 10,
   },
-
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 7,
   },
-
   month: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '700',
     color: COLORS.text,
   },
-
+  todayButton: {
+    alignSelf: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  todayButtonText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   week: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginBottom: 5,
   },
-
   weekDay: {
     width: '14.28%',
     textAlign: 'center',
-    fontSize: 8,
+    fontSize: 10,
     color: COLORS.textSecondary,
     fontWeight: '600',
   },
-
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-
   dayContainer: {
     width: '14.28%',
-    height: 30,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 20,
   },
-
   day: {
-    fontSize: 9,
+    fontSize: 12,
     color: COLORS.text,
   },
-
+  today: {
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  todayText: {
+    color: COLORS.primary,
+    fontWeight: '700',
+  },
   selectedDay: {
     backgroundColor: COLORS.primary,
   },
-
   selectedText: {
     color: COLORS.white,
     fontWeight: '700',
   },
-
 });

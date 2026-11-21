@@ -1,17 +1,22 @@
+
+import { Ionicons } from '@expo/vector-icons';
+
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { COLORS } from '../../styles/theme';
 
 interface AppointmentCardProps {
   horario: string;
+  horarioFim?: string;
   titulo: string;
-  local: string;
+  endereco: string;
   cor: string;
+  tipoUnidade?: 'Público' | 'Privado' | 'Não informado';
   agendado?: boolean;
   onAgendar?: () => void;
   onCancelar?: () => void;
@@ -19,23 +24,36 @@ interface AppointmentCardProps {
 
 export default function AppointmentCard({
   horario,
+  horarioFim,
   titulo,
-  local,
+  endereco,
   cor,
+  tipoUnidade = 'Não informado',
   agendado = false,
   onAgendar,
   onCancelar,
 }: AppointmentCardProps) {
+  const mostrarBotao = agendado
+    ? typeof onCancelar === 'function'
+    : typeof onAgendar === 'function';
+
+  const periodo = horarioFim
+    ? `${horario} às ${horarioFim}`
+    : horario;
+
   return (
     <View style={styles.card}>
-
       <View
         style={[
           styles.timeContainer,
           { backgroundColor: cor },
         ]}
       >
-        <Text style={styles.time}>
+        <Text
+          style={styles.time}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
           {horario}
         </Text>
       </View>
@@ -45,49 +63,76 @@ export default function AppointmentCard({
           {titulo}
         </Text>
 
-        <Text style={styles.location}>
-          {local}
-        </Text>
+        <View style={styles.details}>
+          <View style={styles.detailRow}>
+            <Ionicons
+              name="location-outline"
+              size={13}
+              color={COLORS.textSecondary}
+            />
+            <Text style={styles.detailText}>
+              Endereço: {endereco || 'Não informado'}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Ionicons
+              name="time-outline"
+              size={13}
+              color={COLORS.textSecondary}
+            />
+            <Text style={styles.detailText}>
+              Horário: {periodo}
+            </Text>
+          </View>
+
+          <View style={styles.detailRow}>
+            <Ionicons
+              name="business-outline"
+              size={13}
+              color={COLORS.textSecondary}
+            />
+            <Text style={styles.detailText}>
+              Unidade: {tipoUnidade}
+            </Text>
+          </View>
+        </View>
       </View>
 
-      {(onAgendar || onCancelar) && (
-  <TouchableOpacity
-    style={styles.button}
-    onPress={
-      agendado
-        ? onCancelar
-        : onAgendar
-    }
-  >
-    <Text style={styles.buttonText}>
-      {agendado ? 'Cancelar' : 'Agendar'}
-    </Text>
-  </TouchableOpacity>
-)}
-
+      {mostrarBotao && (
+        <TouchableOpacity
+          style={styles.button}
+          onPress={agendado ? onCancelar : onAgendar}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.buttonText}>
+            {agendado ? 'Cancelar' : 'Agendar'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    minHeight: 58,
+    width: '100%',
+    minHeight: 76,
     backgroundColor: COLORS.white,
     borderRadius: 11,
     borderWidth: 1,
     borderColor: COLORS.border,
-
     flexDirection: 'row',
     alignItems: 'center',
-
-    padding: 8,
+    padding: 10,
+    overflow: 'hidden',
   },
 
   timeContainer: {
     width: 42,
     height: 42,
+    flexShrink: 0,
     borderRadius: 9,
-
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -96,10 +141,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 11,
     fontWeight: '800',
+    textAlign: 'center',
   },
 
   info: {
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
     marginLeft: 10,
   },
 
@@ -107,20 +155,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: COLORS.text,
+    lineHeight: 17,
+    flexShrink: 1,
+    flexWrap: 'wrap',
   },
 
-  location: {
-    fontSize: 9,
+  details: {
+    marginTop: 8,
+    gap: 5,
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 5,
+  },
+
+  detailText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 10,
+    lineHeight: 15,
     color: COLORS.textSecondary,
-    marginTop: 4,
+    flexShrink: 1,
   },
 
   button: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     marginLeft: 8,
+    flexShrink: 0,
+    alignSelf: 'center',
   },
 
   buttonText: {

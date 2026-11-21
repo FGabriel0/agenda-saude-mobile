@@ -1,83 +1,71 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 
 import {
-  View,
-  Text,
   FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  NativeSyntheticEvent,
   NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from 'react-native';
 
+import type { CampanhaHome } from '../../screens/HomeScreen';
 import { COLORS } from '../../styles/theme';
 
-
-const largura = Dimensions.get('window').width - 20;
-
-type Campanha = {
-  id: string;
-  categoria: string;
-  titulo: string;
-  descricao: string;
-  ativa: boolean;
-};
-
 type Props = {
-  onVerCampanha?: (campanha: Campanha) => void;
+  campanhas: CampanhaHome[];
+  onVerCampanha?: (campanha: CampanhaHome) => void;
 };
-
-const campanhas: Campanha[] = [
-  {
-    id: '1',
-    categoria: 'VACINAÇÃO',
-    titulo: 'Campanha contra a gripe',
-    descricao:
-      'Proteção para toda a comunidade.',
-    ativa: true,
-  },
-  {
-    id: '2',
-    categoria: 'DOAÇÃO DE SANGUE',
-    titulo: 'Doe sangue, compartilhe vida',
-    descricao:
-      'Uma única doação pode ajudar a salvar vidas.',
-    ativa: true,
-  },
-  {
-    id: '3',
-    categoria: 'PREVENÇÃO',
-    titulo: 'Cuide da sua Saúde',
-    descricao:
-      'Sua saúde importa.',
-    ativa: true,
-  },
-];
 
 export default function CampaignCard({
+  campanhas,
   onVerCampanha,
 }: Props) {
-  const listaRef = useRef<FlatList<Campanha>>(null);
+  const listaRef =
+    useRef<FlatList<CampanhaHome>>(null);
 
-  const campanhasAtivas = campanhas.filter(
-    (campanha) => campanha.ativa
-  );
+  const { width } = useWindowDimensions();
 
-  const [indiceAtual, setIndiceAtual] = useState(0);
+  const [larguraLista, setLarguraLista] =
+    useState(0);
 
-  // Avanço automático a cada 4 segundos
+  const [indiceAtual, setIndiceAtual] =
+    useState(0);
+
   useEffect(() => {
-    if (campanhasAtivas.length <= 1) return;
+    setIndiceAtual(0);
+
+    if (larguraLista > 0) {
+      listaRef.current?.scrollToOffset({
+        offset: 0,
+        animated: false,
+      });
+    }
+  }, [campanhas, larguraLista]);
+
+  useEffect(() => {
+    if (
+      campanhas.length <= 1 ||
+      larguraLista <= 0
+    ) {
+      return;
+    }
 
     const intervalo = setInterval(() => {
-      setIndiceAtual((indiceAnterior) => {
+      setIndiceAtual(indiceAnterior => {
         const proximo =
-          (indiceAnterior + 1) % campanhasAtivas.length;
+          (indiceAnterior + 1) %
+          campanhas.length;
 
-        listaRef.current?.scrollToIndex({
-          index: proximo,
+        listaRef.current?.scrollToOffset({
+          offset: proximo * larguraLista,
           animated: true,
         });
 
@@ -86,70 +74,101 @@ export default function CampaignCard({
     }, 4000);
 
     return () => clearInterval(intervalo);
-  }, [campanhasAtivas.length]);
+  }, [campanhas.length, larguraLista]);
 
-  // Atualiza o indicador quando o usuário desliza manualmente
   function atualizarIndice(
     event: NativeSyntheticEvent<NativeScrollEvent>
   ) {
-    const offset = event.nativeEvent.contentOffset.x;
+    if (larguraLista <= 0) return;
 
-    const indice = Math.round(offset / largura);
+    const offset =
+      event.nativeEvent.contentOffset.x;
 
-    setIndiceAtual(indice);
+    const indice = Math.round(
+      offset / larguraLista
+    );
+
+    setIndiceAtual(
+      Math.max(
+        0,
+        Math.min(indice, campanhas.length - 1)
+      )
+    );
   }
 
-  if (campanhasAtivas.length === 0) {
+  if (campanhas.length === 0) {
     return null;
   }
 
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={listaRef}
-        data={campanhasAtivas}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={atualizarIndice}
-        getItemLayout={(_, index) => ({
-          length: largura,
-          offset: largura * index,
-          index,
-        })}
-        renderItem={({ item }) => (
-          <View style={styles.slide}>
-            <View style={styles.card}>
-              <Text style={styles.tag}>
-                {item.categoria}
-              </Text>
-
-              <Text style={styles.title}>
-                {item.titulo}
-              </Text>
-
-              <Text style={styles.description}>
-                {item.descricao}
-              </Text>
-
-              <TouchableOpacity
-                style={styles.button}
-                activeOpacity={0.8}
-                onPress={() => onVerCampanha?.(item)}
+      <View
+        style={styles.carouselArea}
+        onLayout={event => {
+          setLarguraLista(
+            event.nativeEvent.layout.width
+          );
+        }}
+      >
+        {larguraLista > 0 && (
+          <FlatList
+            ref={listaRef}
+            data={campanhas}
+            keyExtractor={item => item.id}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={atualizarIndice}
+            getItemLayout={(_, index) => ({
+              length: larguraLista,
+              offset: larguraLista * index,
+              index,
+            })}
+            renderItem={({ item }) => (
+              <View
+                style={[
+                  styles.slide,
+                  { width: larguraLista },
+                ]}
               >
-                <Text style={styles.buttonText}>
-                  Ver campanha
+                <Text style={styles.tag}>
+                  {item.categoria || 'SAÚDE'}
                 </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      />
 
-      {/* Indicadores do carrossel */}
+                <Text
+                  style={styles.title}
+                  numberOfLines={2}
+                >
+                  {item.titulo}
+                </Text>
+
+                <Text
+                  style={styles.description}
+                  numberOfLines={2}
+                >
+                  {item.descricao ||
+                    'Participe desta campanha de saúde.'}
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.button}
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    onVerCampanha?.(item)
+                  }
+                >
+                  <Text style={styles.buttonText}>
+                    Ver campanha
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        )}
+      </View>
+
       <View style={styles.indicadores}>
-        {campanhasAtivas.map((item, index) => (
+        {campanhas.map((item, index) => (
           <View
             key={item.id}
             style={[
@@ -165,19 +184,31 @@ export default function CampaignCard({
 }
 
 const styles = StyleSheet.create({
- container: {
+  container: {
     backgroundColor: COLORS.primary,
     borderRadius: 15,
     padding: 18,
     height: 220,
     marginBottom: 25,
+    overflow: 'hidden',
+  },
+
+  carouselArea: {
+    flex: 1,
+    width: '100%',
+  },
+
+  slide: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
 
   tag: {
     color: COLORS.white,
     fontSize: 10,
     fontWeight: '800',
-    marginBottom: 15,
+    marginBottom: 12,
   },
 
   title: {
@@ -185,14 +216,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 7,
-    flexShrink: 1
+    flexShrink: 1,
   },
 
   description: {
     color: '#E6F7F2',
     fontSize: 12,
     lineHeight: 18,
-    marginBottom: 1,
     flexShrink: 1,
   },
 
@@ -208,21 +238,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 13,
     fontWeight: '800',
-  },
-
-
-  slide: {
-    width: largura,
-    paddingHorizontal: 0,
-
-  },
-
-  card: {
-    borderRadius: 17,
-    padding: 17,
-    justifyContent: 'center',
-    width: '100%',
-    minHeight: 200,
   },
 
   indicadores: {
@@ -242,6 +257,6 @@ const styles = StyleSheet.create({
 
   indicadorAtivo: {
     width: 19,
-    backgroundColor: '#008767',
+    backgroundColor: COLORS.white,
   },
 });

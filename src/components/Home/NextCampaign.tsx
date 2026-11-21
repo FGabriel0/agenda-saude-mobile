@@ -1,55 +1,163 @@
-import React from 'react';
+
+
 import {
-  View,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
+  View,
 } from 'react-native';
 
+import { Ionicons } from '@expo/vector-icons';
+
+import type { CampanhaHome } from '../../screens/HomeScreen';
 import { COLORS } from '../../styles/theme';
 
-export default function NextCampaign() {
+type Props = {
+  titulo?: string;
+  campanhas: CampanhaHome[];
+  textoVazio?: string;
+  mostrarConfirmacao?: boolean;
+  onVerTodas?: () => void;
+  onSelecionar?: (campanha: CampanhaHome) => void;
+};
+
+function formatarData(valor: string) {
+  const data = new Date(valor);
+
+  return {
+    dia: data.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      timeZone: 'America/Fortaleza',
+    }),
+    mes: data
+      .toLocaleDateString('pt-BR', {
+        month: 'short',
+        timeZone: 'America/Fortaleza',
+      })
+      .replace('.', '')
+      .toUpperCase(),
+  };
+}
+
+function formatarHorario(valor: string) {
+  if (!valor) return '';
+
+  const data = new Date(valor);
+
+  if (Number.isNaN(data.getTime())) {
+    return '';
+  }
+
+  return data.toLocaleTimeString('pt-BR', {
+    timeZone: 'America/Fortaleza',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export default function NextCampaign({
+  titulo = 'Próximas campanhas',
+  campanhas,
+  textoVazio = 'Nenhuma campanha encontrada.',
+  mostrarConfirmacao = false,
+  onVerTodas,
+  onSelecionar,
+}: Props) {
   return (
     <View>
-
       <View style={styles.header}>
         <Text style={styles.title}>
-          Próximas campanhas
+          {titulo}
         </Text>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={onVerTodas}>
           <Text style={styles.seeAll}>
-            Ver todas
+            {mostrarConfirmacao
+              ? 'Ver agenda'
+              : 'Ver todas'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.card}>
-
-        <View style={styles.date}>
-          <Text style={styles.number}>
-            14
-          </Text>
-
-          <Text style={styles.month}>
-            SET
+      {campanhas.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>
+            {textoVazio}
           </Text>
         </View>
+      ) : (
+        <View style={styles.list}>
+          {campanhas.map(campanha => {
+            const data = formatarData(campanha.inicio);
 
-        <View style={styles.info}>
+            const horarioInicio =
+              formatarHorario(campanha.inicio);
 
-          <Text style={styles.campaignTitle}>
-            Doe sangue, compartilhe vida
-          </Text>
+            const horarioFim =
+              formatarHorario(campanha.fim);
 
-          <Text style={styles.description}>
-            09h–16h • Hemoce Fortaleza
-          </Text>
+            const horario = horarioFim
+              ? `${horarioInicio} às ${horarioFim}`
+              : horarioInicio;
 
+            const local =
+              campanha.unidade ||
+              campanha.endereco ||
+              'Local não informado';
+
+            return (
+              <TouchableOpacity
+                key={campanha.id}
+                style={styles.card}
+                activeOpacity={0.8}
+                onPress={() =>
+                  onSelecionar?.(campanha)
+                }
+              >
+                <View style={styles.date}>
+                  <Text style={styles.number}>
+                    {data.dia}
+                  </Text>
+
+                  <Text style={styles.month}>
+                    {data.mes}
+                  </Text>
+                </View>
+
+                <View style={styles.info}>
+                  <Text style={styles.campaignTitle}>
+                    {campanha.titulo}
+                  </Text>
+
+                  <Text style={styles.description}>
+                    {horario} • {local}
+                  </Text>
+
+                  {mostrarConfirmacao && (
+                    <View style={styles.status}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={14}
+                        color={COLORS.primary}
+                      />
+
+                      <Text style={styles.statusText}>
+                        Agendamento confirmado
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            );
+          })}
         </View>
-
-      </TouchableOpacity>
-
+      )}
     </View>
   );
 }
@@ -66,15 +174,22 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontSize: 20,
     fontWeight: '800',
+    flex: 1,
   },
 
   seeAll: {
     color: COLORS.primary,
     fontSize: 13,
     fontWeight: '700',
+    marginLeft: 10,
+  },
+
+  list: {
+    gap: 10,
   },
 
   card: {
+    width: '100%',
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -93,6 +208,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
+    flexShrink: 0,
   },
 
   number: {
@@ -109,6 +225,8 @@ const styles = StyleSheet.create({
 
   info: {
     flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
 
   campaignTitle: {
@@ -116,10 +234,41 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     marginBottom: 5,
+    flexWrap: 'wrap',
   },
 
   description: {
     color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    flexWrap: 'wrap',
+  },
+
+  status: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 7,
+  },
+
+  statusText: {
+    color: COLORS.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  emptyCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 15,
+    padding: 20,
+    alignItems: 'center',
+  },
+
+  emptyText: {
+    color: COLORS.textSecondary,
     fontSize: 13,
+    textAlign: 'center',
   },
 });

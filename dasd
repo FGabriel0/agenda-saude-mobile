@@ -1,0 +1,91 @@
+warning: in the working copy of 'functions/src/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/screens/AgendaScreen.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/services/campaigns.ts', LF will be replaced by CRLF the next time Git touches it
+ .github/workflows/testar-fontes.yml                |   22 [32m+[m[31m-[m
+ agenda-saude/.claude/settings.json                 |    5 [31m-[m
+ agenda-saude/.env                                  |    2 [31m-[m
+ agenda-saude/.gitignore                            |   43 [31m-[m
+ agenda-saude/.vscode/extensions.json               |    1 [31m-[m
+ agenda-saude/.vscode/settings.json                 |    7 [31m-[m
+ agenda-saude/AGENTS.md                             |    3 [31m-[m
+ agenda-saude/CLAUDE.md                             |    1 [31m-[m
+ agenda-saude/LICENSE                               |   21 [31m-[m
+ agenda-saude/app.json                              |   60 [31m-[m
+ agenda-saude/app/agenda.tsx                        |   19 [31m-[m
+ agenda-saude/app/buscar.tsx                        |   27 [31m-[m
+ agenda-saude/app/cadastro.tsx                      |   11 [31m-[m
+ agenda-saude/app/campanha.tsx                      |   28 [31m-[m
+ agenda-saude/app/index.tsx                         |  110 [31m-[m
+ agenda-saude/app/informar.tsx                      |   27 [31m-[m
+ agenda-saude/app/login.tsx                         |   11 [31m-[m
+ agenda-saude/app/servicos.tsx                      |   27 [31m-[m
+ agenda-saude/assets/adaptive-icon.png              |  Bin [31m17547[m -> [32m0[m bytes
+ .../assets/expo.icon/Assets/expo-symbol 2.svg      |    3 [31m-[m
+ agenda-saude/assets/expo.icon/Assets/grid.png      |  Bin [31m53681[m -> [32m0[m bytes
+ agenda-saude/assets/expo.icon/icon.json            |   40 [31m-[m
+ agenda-saude/assets/icon.png                       |  Bin [31m22380[m -> [32m0[m bytes
+ agenda-saude/assets/images/Cores temas.png         |  Bin [31m17273[m -> [32m0[m bytes
+ agenda-saude/assets/images/Tela Agenda.png         |  Bin [31m434090[m -> [32m0[m bytes
+ .../assets/images/Tela de Servi\303\247o.png"      |  Bin [31m134854[m -> [32m0[m bytes
+ agenda-saude/assets/images/Tela de agenda.png      |  Bin [31m140632[m -> [32m0[m bytes
+ .../images/Tela de informa\303\247\303\243o.png"   |  Bin [31m142756[m -> [32m0[m bytes
+ agenda-saude/assets/images/prototipo.png           |  Bin [31m208082[m -> [32m0[m bytes
+ agenda-saude/assets/images/tela Home.png           |  Bin [31m163025[m -> [32m0[m bytes
+ agenda-saude/assets/images/tela de Busca.png       |  Bin [31m127715[m -> [32m0[m bytes
+ agenda-saude/package-lock.json                     | 7924 [31m--------------------[m
+ agenda-saude/package.json                          |   55 [31m-[m
+ agenda-saude/scripts/reset-project.js              |  114 [31m-[m
+ .../src/components/Home/BottomNavigation.tsx       |  100 [31m-[m
+ agenda-saude/src/components/Home/CampaignCard.tsx  |   80 [31m-[m
+ agenda-saude/src/components/Home/Header.tsx        |   70 [31m-[m
+ agenda-saude/src/components/Home/NavItem.tsx       |   75 [31m-[m
+ agenda-saude/src/components/Home/NextCampaign.tsx  |  125 [31m-[m
+ agenda-saude/src/components/Home/QuickAccess.tsx   |   57 [31m-[m
+ .../src/components/Home/QuickAccessButton.tsx      |   57 [31m-[m
+ agenda-saude/src/components/Infor/ArticleCard.tsx  |  128 [31m-[m
+ .../src/components/Infor/EmergencyHelp.tsx         |   74 [31m-[m
+ .../src/components/Infor/InformationTopics.tsx     |   65 [31m-[m
+ .../src/components/Infor/PreventionCard.tsx        |  121 [31m-[m
+ .../src/components/Infor/RecentContentHeader.tsx   |   60 [31m-[m
+ agenda-saude/src/components/Infor/TopicCard.tsx    |   71 [31m-[m
+ .../src/components/Search/SearchCategories.tsx     |   98 [31m-[m
+ .../src/components/Search/SearchFilters.tsx        |  158 [31m-[m
+ agenda-saude/src/components/Search/SearchInput.tsx |   71 [31m-[m
+ .../src/components/Search/SearchResultCard.tsx     |  103 [31m-[m
+ .../src/components/Search/SearchService.tsx        |   65 [31m-[m
+ .../src/components/Services/HealthUnitCard.tsx     |  115 [31m-[m
+ .../src/components/Services/MapaUnidades.tsx       |  425 [31m--[m
+ .../src/components/Services/NearbyHeader.tsx       |   55 [31m-[m
+ .../src/components/Services/ServiceMap.tsx         |   75 [31m-[m
+ .../src/components/Services/ServiceTypeCard.tsx    |   70 [31m-[m
+ .../src/components/Services/ServiceTypes.tsx       |   63 [31m-[m
+ .../src/components/agenda/AppointmentCard.tsx      |  131 [31m-[m
+ agenda-saude/src/components/agenda/Calendar.tsx    |  265 [31m-[m
+ .../src/components/agenda/FilterButton.tsx         |   67 [31m-[m
+ agenda-saude/src/data/appointments.tsx             |   32 [31m-[m
+ agenda-saude/src/lib/supabase.ts                   |   39 [31m-[m
+ agenda-saude/src/router/router.tsx                 |   11 [31m-[m
+ agenda-saude/src/screens/AgendaScreen.tsx          |  809 [31m--[m
+ agenda-saude/src/screens/BuscarScreen.tsx          |  117 [31m-[m
+ agenda-saude/src/screens/CadastroScreen.tsx        |  388 [31m-[m
+ agenda-saude/src/screens/CampanhaScreen.jsx        |  379 [31m-[m
+ agenda-saude/src/screens/HomeScreen.tsx            |  138 [31m-[m
+ agenda-saude/src/screens/InformarScreen.tsx        |  103 [31m-[m
+ agenda-saude/src/screens/LoginScreen.tsx           |  266 [31m-[m
+ agenda-saude/src/screens/ServicesScreen.tsx        |   97 [31m-[m
+ agenda-saude/src/services/appointments.ts          |  128 [31m-[m
+ agenda-saude/src/services/campaigns.ts             |   86 [31m-[m
+ agenda-saude/src/styles/theme.tsx                  |   23 [31m-[m
+ agenda-saude/tsconfig.json                         |   20 [31m-[m
+ functions/sincronizar-campanhas.cjs                | 1276 [32m++[m[31m--[m
+ functions/src/index.ts                             |  453 [32m+[m[31m-[m
+ src/components/Home/CampaignCard.tsx               |  261 [32m+[m[31m-[m
+ src/components/Home/NextCampaign.tsx               |  203 [32m+[m[31m-[m
+ src/components/agenda/AppointmentCard.tsx          |  139 [32m+[m[31m-[m
+ src/components/agenda/Calendar.tsx                 |  273 [32m+[m[31m-[m
+ src/screens/AgendaScreen.tsx                       | 1292 [32m++[m[31m--[m
+ src/screens/HomeScreen.tsx                         |  219 [32m+[m[31m-[m
+ src/services/appointments.ts                       |  153 [32m+[m[31m-[m
+ src/services/campaigns.ts                          |  274 [32m+[m[31m-[m
+ tsconfig.json                                      |    2 [32m+[m[31m-[m
+ 87 files changed, 2728 insertions(+), 15858 deletions(-)

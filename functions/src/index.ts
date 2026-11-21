@@ -1,6 +1,9 @@
 
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  getFirestore,
+} from "firebase-admin/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { load } from "cheerio";
@@ -10,25 +13,74 @@ initializeApp();
 
 const db = getFirestore();
 
-const FONTE =
-  "https://www.fortaleza.ce.gov.br/noticias/categoria/saude";
+type Fonte = {
+  nome: string;
+  url: string;
+  dominio: string;
+  tipo: "prefeitura" | "hemoce";
+};
+
+type Publicacao = {
+  titulo: string;
+  url: string;
+  fonte: string;
+};
+
+const FONTES: Fonte[] = [
+  {
+    nome: "Prefeitura de Fortaleza",
+    url: "https://www.fortaleza.ce.gov.br/noticias/categoria/saude",
+    dominio: "fortaleza.ce.gov.br",
+    tipo: "prefeitura",
+  },
+  {
+    nome: "Hemoce",
+    url: "https://www.hemoce.ce.gov.br/",
+    dominio: "hemoce.ce.gov.br",
+    tipo: "hemoce",
+  },
+  {
+    nome: "Hemoce",
+    url: "https://www.hemoce.ce.gov.br/category/sessao-de-noticias/",
+    dominio: "hemoce.ce.gov.br",
+    tipo: "hemoce",
+  },
+];
 
 const PALAVRAS_CHAVE = [
   "campanha",
-  "vacinação",
   "vacinacao",
-  "mutirão",
+  "multivacinacao",
+  "imunizacao",
   "mutirao",
   "dia d",
   "novembro azul",
   "outubro rosa",
   "setembro amarelo",
-  "prevenção",
   "prevencao",
+  "doacao de sangue",
+  "doador de sangue",
+  "coleta de sangue",
+  "coleta externa",
+  "saude da mulher",
+  "saude do homem",
+  "testagem",
+  "exames gratuitos",
+  "acao de saude",
+  "acoes de saude",
+  "servicos de saude",
+  "postos de saude abertos",
 ];
 
-function normalizar(texto: string): string {
-  return texto
+const TERMOS_DESCARTE = [
+  "encerra com",
+  "balanco da campanha",
+  "resultado da campanha",
+  "vencedores do concurso",
+];
+
+function normalizar(valor: string): string {
+  return valor
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
@@ -39,8 +91,16 @@ function normalizar(texto: string): string {
 function ehPossivelCampanha(titulo: string): boolean {
   const texto = normalizar(titulo);
 
-  return PALAVRAS_CHAVE.some((palavra) =>
-    texto.includes(normalizar(palavra))
+  if (
+    TERMOS_DESCARTE.some(termo =>
+      texto.includes(termo)
+    )
+  ) {
+    return false;
+  }
+
+  return PALAVRAS_CHAVE.some(termo =>
+    texto.includes(termo)
   );
 }
 
@@ -51,15 +111,70 @@ function criarId(url: string): string {
     .slice(0, 32);
 }
 
-type Publicacao = {
-  titulo: string;
-  url: string;
-};
+function normalizarUrl(
+  href: string,
+  base: string
+): string | null {
+  try {
+    const url = new URL(href, base);
 
-async function buscarPublicacoes(): Promise<Publicacao[]> {
-  const resposta = await fetch(FONTE, {
+    if (
+      url.protocol !== "https:" &&
+      url.protocol !== "http:"
+    ) {
+      return null;
+    }
+
+    url.protocol = "https:";
+    url.hostname = url.hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+
+    url.hash = "";
+    url.search = "";
+
+    url.pathname =
+      url.pathname.replace(/\/+$/, "") || "/";
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function ehNoticiaValida(
+  urlTexto: string,
+  fonte: Fonte
+): boolean {
+  const url = new URL(urlTexto);
+
+  if (url.hostname !== fonte.dominio) {
+    return false;
+  }
+
+  if (fonte.tipo === "prefeitura") {
+    return (
+      url.pathname.startsWith("/noticias/") &&
+      url.pathname !== "/noticias" &&
+      !url.pathname.startsWith(
+        "/noticias/categoria/"
+      )
+    );
+  }
+
+  // Notícias do Hemoce usam URLs com ano/mês/dia.
+  return /^\/20\d{2}\/\d{2}\/\d{2}\/.+/.test(
+    url.pathname
+  );
+}
+
+async function baixarHtml(
+  url: string
+): Promise<string> {
+  const resposta = await fetch(url, {
     headers: {
-      "User-Agent": "AgendaSaude/1.0 (importador de noticias publicas)",
+      "User-Agent":
+        "AgendaSaude/1.0 (coletor de noticias publicas)",
       Accept: "text/html",
     },
     signal: AbortSignal.timeout(20000),
@@ -67,138 +182,256 @@ async function buscarPublicacoes(): Promise<Publicacao[]> {
 
   if (!resposta.ok) {
     throw new Error(
-      `Falha ao consultar Prefeitura: HTTP ${resposta.status}`
+      `HTTP ${resposta.status}: ${url}`
     );
   }
 
-  const html = await resposta.text();
+  return resposta.text();
+}
+
+function extrairPublicacoes(
+  html: string,
+  fonte: Fonte,
+  urlPagina: string
+): Publicacao[] {
   const $ = load(html);
 
-  const publicacoes = new Map<string, Publicacao>();
+  const publicacoes = new Map<
+    string,
+    Publicacao
+  >();
 
-  // A estrutura HTML do portal pode mudar.
-  // Por isso, coletamos links e validamos o destino.
   $("a[href]").each((_, elemento) => {
-    const titulo = $(elemento).text().replace(/\s+/g, " ").trim();
-    const href = $(elemento).attr("href");
+    const link = $(elemento);
+    const href = link.attr("href");
 
-    if (!href || titulo.length < 15 || titulo.length > 250) {
-      return;
-    }
+    if (!href) return;
 
-    if (!ehPossivelCampanha(titulo)) {
-      return;
-    }
-
-    let url: URL;
-
-    try {
-      url = new URL(href, FONTE);
-    } catch {
-      return;
-    }
+    const titulo = link
+      .text()
+      .replace(/\s+/g, " ")
+      .trim();
 
     if (
-      !["fortaleza.ce.gov.br", "www.fortaleza.ce.gov.br"]
-        .includes(url.hostname)
+      titulo.length < 15 ||
+      titulo.length > 250 ||
+      !ehPossivelCampanha(titulo)
     ) {
       return;
     }
 
-    if (!url.pathname.startsWith("/noticias/")) {
-      return;
-    }
+    const url = normalizarUrl(
+      href,
+      urlPagina
+    );
 
-    // Ignora links de categorias, paginação e filtros.
     if (
-      url.pathname.startsWith("/noticias/categoria/") ||
-      url.pathname === "/noticias/"
+      !url ||
+      !ehNoticiaValida(url, fonte)
     ) {
       return;
     }
 
-    url.hash = "";
-    url.search = "";
-    url.hostname = "www.fortaleza.ce.gov.br";
-
-    publicacoes.set(url.toString(), {
+    publicacoes.set(url, {
       titulo,
-      url: url.toString(),
+      url,
+      fonte: fonte.nome,
     });
   });
 
   return [...publicacoes.values()];
 }
 
-export const sincronizarCampanhasFortaleza = onSchedule(
-  {
-    schedule: "every 6 hours",
-    timeZone: "America/Fortaleza",
-    region: "southamerica-east1",
-    maxInstances: 1,
-    timeoutSeconds: 120,
-    memory: "256MiB",
-  },
-  async () => {
-    logger.info("Iniciando sincronização de Fortaleza");
+function paginasDaFonte(
+  fonte: Fonte
+): string[] {
+  if (fonte.tipo !== "prefeitura") {
+    return [fonte.url];
+  }
 
-    const publicacoes = await buscarPublicacoes();
+  // O portal da Prefeitura utiliza paginação.
+  return [
+    fonte.url,
+    ...[0, 5, 10, 15, 20, 25, 30, 35, 40].map(
+      inicio =>
+        `${fonte.url}?start=${inicio}`
+    ),
+  ];
+}
 
-    logger.info("Publicações candidatas encontradas", {
-      quantidade: publicacoes.length,
-    });
+async function buscarPublicacoes():
+  Promise<Publicacao[]> {
+  const publicacoes = new Map<
+    string,
+    Publicacao
+  >();
 
-    let adicionadas = 0;
-    let existentes = 0;
+  for (const fonte of FONTES) {
+    const paginas = [
+      ...new Set(paginasDaFonte(fonte)),
+    ];
 
-    for (const publicacao of publicacoes) {
-      const id = `fortaleza_${criarId(publicacao.url)}`;
-      const referencia = db.collection("campaigns").doc(id);
+    for (const pagina of paginas) {
+      try {
+        const html = await baixarHtml(pagina);
 
-      // A transação impede sobrescrever documentos existentes.
-      const criada = await db.runTransaction(async (transacao) => {
-        const documento = await transacao.get(referencia);
+        const encontradas =
+          extrairPublicacoes(
+            html,
+            fonte,
+            pagina
+          );
 
-        if (documento.exists) {
-          return false;
+        for (const publicacao of encontradas) {
+          publicacoes.set(
+            publicacao.url,
+            publicacao
+          );
         }
 
-        transacao.create(referencia, {
-          title: publicacao.titulo,
-          description:
-            "Publicação identificada no portal oficial de Fortaleza. " +
-            "Consulte a fonte para confirmar datas, locais e serviços.",
-
-          source: "Prefeitura de Fortaleza",
-          sourceUrl: publicacao.url,
-          sourceType: "official_news",
-
-          city: "Fortaleza",
-          state: "CE",
-
-          // Não confundir notícia com campanha confirmada.
-          status: "pending_review",
-          isPublished: false,
-          isBookable: false,
-
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-
-        return true;
-      });
-
-      if (criada) {
-        adicionadas++;
-      } else {
-        existentes++;
+        logger.info(
+          "Página consultada",
+          {
+            fonte: fonte.nome,
+            pagina,
+            encontradas:
+              encontradas.length,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          "Falha ao consultar fonte",
+          {
+            fonte: fonte.nome,
+            pagina,
+            erro: String(error),
+          }
+        );
       }
     }
-
-    logger.info("Sincronização concluída", {
-      encontradas: publicacoes.length,
-      adicionadas,
-      existentes,
-    });
   }
-);
+
+  return [...publicacoes.values()];
+}
+
+async function salvarPublicacao(
+  publicacao: Publicacao
+): Promise<boolean> {
+  const prefixo =
+    publicacao.fonte === "Hemoce"
+      ? "hemoce"
+      : "fortaleza";
+
+  const id =
+    `${prefixo}_${criarId(publicacao.url)}`;
+
+  const referencia = db
+    .collection("campaigns")
+    .doc(id);
+
+  return db.runTransaction(
+    async transacao => {
+      const existente =
+        await transacao.get(referencia);
+
+      if (existente.exists) {
+        return false;
+      }
+
+      transacao.create(referencia, {
+        title: publicacao.titulo,
+
+        description:
+          "Notícia identificada automaticamente em fonte oficial. " +
+          "O administrador deve verificar a data, " +
+          "o endereço, a disponibilidade e " +
+          "as condições de participação.",
+
+        source: publicacao.fonte,
+        sourceUrl: publicacao.url,
+        sourceType: "official_news",
+
+        city: "Fortaleza",
+        state: "CE",
+
+        category: null,
+        start_at: null,
+        end_at: null,
+        address: null,
+        location: null,
+
+        status: "pending_review",
+        isPublished: false,
+        isBookable: false,
+        appointment_required: false,
+
+        createdAt:
+          FieldValue.serverTimestamp(),
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    }
+  );
+}
+
+export const sincronizarCampanhasFortaleza =
+  onSchedule(
+    {
+      schedule: "every 6 hours",
+      timeZone: "America/Fortaleza",
+      region: "southamerica-east1",
+      maxInstances: 1,
+      timeoutSeconds: 300,
+      memory: "256MiB",
+    },
+    async () => {
+      logger.info(
+        "Iniciando coleta de campanhas"
+      );
+
+      const publicacoes =
+        await buscarPublicacoes();
+
+      let adicionadas = 0;
+      let existentes = 0;
+      let falhas = 0;
+
+      for (const publicacao of publicacoes) {
+        try {
+          const criada =
+            await salvarPublicacao(
+              publicacao
+            );
+
+          if (criada) {
+            adicionadas++;
+          } else {
+            existentes++;
+          }
+        } catch (error) {
+          falhas++;
+
+          logger.error(
+            "Erro ao salvar publicação",
+            {
+              url: publicacao.url,
+              erro: String(error),
+            }
+          );
+        }
+      }
+
+      logger.info(
+        "Sincronização concluída",
+        {
+          encontradas:
+            publicacoes.length,
+          adicionadas,
+          existentes,
+          falhas,
+        }
+      );
+    }
+  );

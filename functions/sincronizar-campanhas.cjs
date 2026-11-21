@@ -1,77 +1,96 @@
 
-const { createHash } = require("node:crypto");
-const cheerio = require("cheerio");
-const {
-  initializeApp,
-  cert,
-  getApps
-} = require("firebase-admin/app");
-const {
-  getFirestore,
-  FieldValue
-} = require("firebase-admin/firestore");
+'use strict';
 
-const PROJETO = "agenda-saude-4ea5b";
-const FUSO = "-03:00";
+const { createHash } = require('node:crypto');
+const cheerio = require('cheerio');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
-const FONTES = [
+const PROJECT_ID = 'agenda-saude-4ea5b';
+const GRAVAR = process.env.GRAVAR_FIRESTORE === 'true';
+
+const SOURCES = [
   {
-    nome: "Prefeitura de Fortaleza",
-    url: "https://www.fortaleza.ce.gov.br/noticias/categoria/saude?format=feed&type=rss",
-    tipo: "rss",
-    dominio: "fortaleza.ce.gov.br",
-    abrangencia: "municipal",
-    cidade: "Fortaleza",
-    estado: "CE"
+    name: 'Prefeitura de Fortaleza',
+    url: 'https://www.fortaleza.ce.gov.br/noticias/categoria/saude?format=feed&type=rss',
+    kind: 'rss',
+    host: 'fortaleza.ce.gov.br',
+    scope: 'municipal',
+    city: 'Fortaleza',
+    state: 'CE',
   },
   {
-    nome: "Secretaria da Saúde do Ceará",
-    url: "https://www.saude.ce.gov.br/",
-    tipo: "html",
-    dominio: "saude.ce.gov.br",
-    abrangencia: "estadual",
-    cidade: null,
-    estado: "CE"
-  }
+    name: 'Prefeitura de Fortaleza - Notícias',
+    url: 'https://www.fortaleza.ce.gov.br/noticias/categoria/saude',
+    kind: 'html',
+    host: 'fortaleza.ce.gov.br',
+    scope: 'municipal',
+    city: 'Fortaleza',
+    state: 'CE',
+  },
+  {
+    name: 'Secretaria da Saúde do Ceará',
+    url: 'https://www.saude.ce.gov.br/',
+    kind: 'html',
+    host: 'saude.ce.gov.br',
+    scope: 'estadual',
+    city: null,
+    state: 'CE',
+  },
+  {
+    name: 'Hemoce - API WordPress',
+    url: 'https://www.hemoce.ce.gov.br/wp-json/wp/v2/posts',
+    kind: 'wordpress',
+    host: 'hemoce.ce.gov.br',
+    scope: 'estadual',
+    city: null,
+    state: 'CE',
+  },
 ];
 
-const TERMOS = [
-  "campanha de vacinacao",
-  "campanha de saude",
-  "campanha de prevencao",
-  "campanha nacional",
-  "campanha estadual",
-  "campanha contra",
-  "campanha do",
-  "campanha da",
-  "multivacinacao",
-  "mutirao de saude",
-  "mutirao de atendimento",
-  "mutirao de exames",
-  "mutirao de cirurgias",
-  "dia d de vacinacao",
-  "dia d da vacinacao",
-  "outubro rosa",
-  "novembro azul",
-  "setembro amarelo",
-  "setembro verde"
+const TERMS = [
+  'campanha',
+  'vacinacao',
+  'vacina',
+  'imunizacao',
+  'multivacinacao',
+  'mutirao',
+  'dia d',
+  'doacao de sangue',
+  'doador de sangue',
+  'doar sangue',
+  'coleta de sangue',
+  'coleta externa',
+  'novembro azul',
+  'outubro rosa',
+  'prevencao',
+  'testagem',
+  'exames gratuitos',
+  'atendimento gratuito',
+  'acao de saude',
+  'acoes de saude',
+  'saude da mulher',
+  'saude do homem',
 ];
 
-const EXCLUSOES = [
-  "encerra",
-  "encerrada",
-  "balanco",
-  "resultado",
-  "prestacao de contas",
-  "feriado",
-  "funcionamento dos servicos",
-  "inaugura",
-  "entrega de",
-  "licitacao",
-  "concurso publico"
+const EXCLUSIONS = [
+  'licitacao',
+  'concurso publico',
+  'processo seletivo',
+  'prestacao de contas',
+  'balanco anual',
+  'certificacao internacional',
+  'concurso de frases',
+  'concurso de desenhos',
+  'funcionamento dos servicos publicos',
+  'funcionamento no feriado',
+  'expediente no feriado',
+  'horario de funcionamento no feriado',
+  'nota de pesar',
+  'resultado de selecao',
 ];
 
-const MESES = {
+const MONTHS = {
   janeiro: 1,
   fevereiro: 2,
   marco: 3,
@@ -83,50 +102,60 @@ const MESES = {
   setembro: 9,
   outubro: 10,
   novembro: 11,
-  dezembro: 12
+  dezembro: 12,
 };
 
-function limpar(valor) {
-  return String(valor || "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+const clean = value =>
+  String(value ?? '').replace(/\s+/g, ' ').trim();
 
-function normalizar(valor) {
-  return limpar(valor)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+const norm = value =>
+  clean(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
+
+const hash = value =>
+  createHash('sha256')
+    .update(value)
+    .digest('hex')
+    .slice(0, 32);
+
+function plain(html) {
+  return clean(cheerio.load(html || '').text());
 }
 
-function ehCampanha(titulo) {
-  const texto = normalizar(titulo);
+function isCampaign(title) {
+  const text = norm(title);
 
-  if (texto.length < 20 || texto.length > 220) {
-    return false;
-  }
-
-  if (EXCLUSOES.some(termo => texto.includes(termo))) {
-    return false;
-  }
-
-  return TERMOS.some(termo => texto.includes(termo));
+  return (
+    text.length >= 12 &&
+    text.length <= 300 &&
+    !EXCLUSIONS.some(term => text.includes(term)) &&
+    TERMS.some(term => text.includes(term))
+  );
 }
 
-function urlValida(href, base, dominio) {
+function safeUrl(href, base, host) {
   try {
     const url = new URL(href, base);
 
-    if (url.protocol !== "https:") return null;
+    if (url.protocol !== 'https:') return null;
 
-    if (
-      url.hostname.replace(/^www\./, "") !== dominio
-    ) {
+    if (url.hostname.replace(/^www\./, '') !== host) {
       return null;
     }
 
-    url.hash = "";
-    url.search = "";
+    url.hostname = `www.${host}`;
+    url.hash = '';
+
+    for (const key of [...url.searchParams.keys()]) {
+      if (
+        key.startsWith('utm_') ||
+        ['fbclid', 'gclid'].includes(key)
+      ) {
+        url.searchParams.delete(key);
+      }
+    }
 
     return url.toString();
   } catch {
@@ -134,711 +163,778 @@ function urlValida(href, base, dominio) {
   }
 }
 
-function gerarId(url) {
-  return createHash("sha256")
-    .update(url)
-    .digest("hex")
-    .slice(0, 32);
-}
-
-async function baixar(url) {
-  const resposta = await fetch(url, {
+async function download(url, accept = 'text/html') {
+  const response = await fetch(url, {
     headers: {
-      "User-Agent": "AgendaSaude/1.0",
-      Accept:
-        "application/rss+xml, application/xml, text/html"
+      'User-Agent': 'AgendaSaude/1.0',
+      Accept: accept,
     },
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(20000),
   });
 
-  if (!resposta.ok) {
-    throw new Error(`HTTP ${resposta.status}`);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${url}`);
   }
 
-  return resposta.text();
+  return response;
 }
 
-// ==========================================
-// LOCALIZAR NOTÍCIAS
-// ==========================================
+function parseDate(value) {
+  if (!value) return null;
 
-function extrairRSS(xml, fonte) {
-  const $ = cheerio.load(xml, { xmlMode: true });
-  const itens = $("channel > item");
-  const campanhas = new Map();
+  const date = new Date(value);
 
-  console.log(`Notícias disponíveis: ${itens.length}`);
-
-  itens.each((_, elemento) => {
-    const item = $(elemento);
-
-    const titulo = limpar(
-      item.find("title").first().text()
-    );
-
-    const link = limpar(
-      item.find("link").first().text()
-    );
-
-    const dataTexto = limpar(
-      item.find("pubDate").first().text()
-    );
-
-    if (!ehCampanha(titulo)) return;
-
-    const url = urlValida(
-      link,
-      fonte.url,
-      fonte.dominio
-    );
-
-    if (!url) return;
-
-    const data = dataTexto
-      ? new Date(dataTexto)
-      : null;
-
-    campanhas.set(url, {
-      titulo,
-      url,
-      fonte: fonte.nome,
-      abrangencia: fonte.abrangencia,
-      cidade: fonte.cidade,
-      estado: fonte.estado,
-      dataPublicacao:
-        data && !Number.isNaN(data.getTime())
-          ? data
-          : null
-    });
-  });
-
-  return [...campanhas.values()];
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function extrairHTML(html, fonte) {
-  const $ = cheerio.load(html);
-  const campanhas = new Map();
+function dateParts(date) {
+  if (!date) return null;
 
-  $(
-    "h1 a, h2 a, h3 a, .entry-title a, .item-title a"
-  ).each((_, elemento) => {
-    const titulo = limpar($(elemento).text());
-    const href = $(elemento).attr("href");
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Fortaleza',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(date);
 
-    if (!href || !ehCampanha(titulo)) return;
+  const get = type =>
+    Number(parts.find(part => part.type === type)?.value);
 
-    const url = urlValida(
-      href,
-      fonte.url,
-      fonte.dominio
-    );
-
-    if (!url) return;
-
-    const caminho = new URL(url).pathname;
-
-    if (
-      caminho === "/" ||
-      caminho.includes("/category/") ||
-      caminho.includes("/noticias/categoria/")
-    ) {
-      return;
-    }
-
-    campanhas.set(url, {
-      titulo,
-      url,
-      fonte: fonte.nome,
-      abrangencia: fonte.abrangencia,
-      cidade: fonte.cidade,
-      estado: fonte.estado,
-      dataPublicacao: null
-    });
-  });
-
-  return [...campanhas.values()];
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+  };
 }
 
-// ==========================================
-// EXTRAÇÃO DE DATAS
-// ==========================================
-
-function dataISO(dia, mes, ano, hora = "00:00") {
-  const d = Number(dia);
-  const m = Number(mes);
-  const a = Number(ano);
+function isoDate(day, month, year) {
+  const d = Number(day);
+  const m = Number(month);
+  const y = Number(year);
 
   if (
     !Number.isInteger(d) ||
     !Number.isInteger(m) ||
-    !Number.isInteger(a) ||
-    a < 2020 ||
-    a > 2100
+    !Number.isInteger(y) ||
+    y < 2020 ||
+    y > 2100 ||
+    m < 1 ||
+    m > 12
   ) {
     return null;
   }
 
-  const [h, min] = hora.split(":").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
 
   if (
-    h < 0 || h > 23 ||
-    min < 0 || min > 59
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
   ) {
     return null;
   }
 
-  const teste = new Date(
-    Date.UTC(a, m - 1, d)
-  );
-
-  if (
-    teste.getUTCFullYear() !== a ||
-    teste.getUTCMonth() !== m - 1 ||
-    teste.getUTCDate() !== d
-  ) {
-    return null;
-  }
-
-  const data =
-    `${a}-${String(m).padStart(2, "0")}-` +
-    `${String(d).padStart(2, "0")}T` +
-    `${String(h).padStart(2, "0")}:` +
-    `${String(min).padStart(2, "0")}:00${FUSO}`;
-
-  return new Date(data).toISOString();
+  return [
+    y,
+    String(m).padStart(2, '0'),
+    String(d).padStart(2, '0'),
+  ].join('-');
 }
 
-function extrairDatas(texto, anoReferencia) {
-  const encontrado = new Map();
-  const conteudo = normalizar(texto);
+function todayFortaleza() {
+  const parts = dateParts(new Date());
 
-  // Datas numéricas com ano explícito.
-  const numericas =
-    /\b(\d{1,2})\/(\d{1,2})\/(20\d{2})\b/g;
+  return isoDate(parts.day, parts.month, parts.year);
+}
 
-  for (const match of conteudo.matchAll(numericas)) {
-    const iso = dataISO(
-      match[1],
-      match[2],
-      match[3]
-    );
+function extractDates(text, publicationDate) {
+  const content = norm(text);
+  const reference = dateParts(publicationDate);
+  const found = new Map();
 
-    if (iso) {
-      encontrado.set(iso, {
-        iso,
-        trecho: match[0]
-      });
+  function add(day, month, year, excerpt) {
+    const date = isoDate(day, month, year);
+
+    if (!date || found.has(date)) return;
+
+    found.set(date, {
+      data: date,
+      trecho: excerpt,
+    });
+  }
+
+  for (const match of content.matchAll(
+    /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g
+  )) {
+    if (match[3] || reference) {
+      add(
+        match[1],
+        match[2],
+        match[3] || reference.year,
+        match[0]
+      );
     }
   }
 
-  // Datas por extenso, com ano explícito.
-  const extenso =
-    /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+(20\d{2})\b/g;
-
-  for (const match of conteudo.matchAll(extenso)) {
-    const iso = dataISO(
-      match[1],
-      MESES[match[2]],
-      match[3]
-    );
-
-    if (iso) {
-      encontrado.set(iso, {
-        iso,
-        trecho: match[0]
-      });
+  for (const match of content.matchAll(
+    /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?\b/g
+  )) {
+    if (match[3] || reference) {
+      add(
+        match[1],
+        MONTHS[match[2]],
+        match[3] || reference.year,
+        match[0]
+      );
     }
   }
 
-  // Datas sem ano são apenas candidatas.
-  // Não serão gravadas automaticamente.
-  const semAno =
-    /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b(?!\s+de\s+\d{4})/g;
-
-  const datasSemAno = [];
-
-  for (const match of conteudo.matchAll(semAno)) {
-    datasSemAno.push(match[0]);
-  }
-
-  return {
-    datas: [...encontrado.values()],
-    datasSemAno: [...new Set(datasSemAno)],
-    anoReferencia
-  };
+  return [...found.values()];
 }
 
-// ==========================================
-// EXTRAÇÃO DE HORÁRIOS
-// ==========================================
+function extractTimes(text) {
+  const content = norm(text);
+  const found = new Map();
 
-function extrairHorarios(texto) {
-  const conteudo = normalizar(texto);
-
-  const padrao =
-    /\b(?:das?\s+)?(\d{1,2})(?:h|:)(\d{2})?\s*(?:as|ate|-)\s*(\d{1,2})(?:h|:)(\d{2})?\b/g;
-
-  const encontrados = [];
-
-  for (const match of conteudo.matchAll(padrao)) {
-    const inicioHora = Number(match[1]);
-    const inicioMin = Number(match[2] || 0);
-    const fimHora = Number(match[3]);
-    const fimMin = Number(match[4] || 0);
+  for (const match of content.matchAll(
+    /\b(?:das?\s+)?(\d{1,2})(?:h|:)(\d{2})?\s*(?:as|ate|-)\s*(\d{1,2})(?:h|:)(\d{2})?\b/g
+  )) {
+    const h1 = Number(match[1]);
+    const m1 = Number(match[2] || 0);
+    const h2 = Number(match[3]);
+    const m2 = Number(match[4] || 0);
 
     if (
-      inicioHora > 23 ||
-      fimHora > 23 ||
-      inicioMin > 59 ||
-      fimMin > 59
+      h1 > 23 ||
+      h2 > 23 ||
+      m1 > 59 ||
+      m2 > 59
     ) {
       continue;
     }
 
-    const inicio =
-      `${String(inicioHora).padStart(2, "0")}:` +
-      `${String(inicioMin).padStart(2, "0")}`;
+    const format = (h, m) =>
+      `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 
-    const fim =
-      `${String(fimHora).padStart(2, "0")}:` +
-      `${String(fimMin).padStart(2, "0")}`;
+    const start = format(h1, m1);
+    const end = format(h2, m2);
 
-    encontrados.push({
-      inicio,
-      fim,
-      trecho: match[0]
+    if (end <= start) continue;
+
+    found.set(`${start}-${end}`, {
+      inicio: start,
+      fim: end,
+      trecho: match[0],
     });
   }
 
-  return encontrados;
+  return [...found.values()];
 }
 
-// ==========================================
-// EXTRAÇÃO DE LOCAIS
-// ==========================================
-
-function extrairLocal(texto) {
-  const linhas = String(texto || "")
-    .split(/\n+/)
-    .map(limpar)
-    .filter(Boolean);
-
-  const padroes = [
-    /^(?:local|onde)\s*:\s*(.+)$/i,
-    /^(?:endereço|endereco)\s*:\s*(.+)$/i
-  ];
-
-  let local = null;
-  let endereco = null;
-
-  for (const linha of linhas) {
-    const matchLocal = linha.match(padroes[0]);
-    const matchEndereco = linha.match(padroes[1]);
-
-    if (matchLocal && !local) {
-      local = limpar(matchLocal[1]).slice(0, 250);
-    }
-
-    if (matchEndereco && !endereco) {
-      endereco = limpar(matchEndereco[1]).slice(0, 300);
-    }
-  }
-
-  return { local, endereco };
-}
-
-// ==========================================
-// LER CONTEÚDO DA NOTÍCIA
-// ==========================================
-
-function extrairConteudoNoticia(html) {
+function extractArticle(html) {
   const $ = cheerio.load(html);
 
-  $(
-    "script, style, nav, footer, header, aside"
-  ).remove();
+  $('script,style,nav,footer,header,aside').remove();
 
-  const seletores = [
-    ".itemFullText",
-    ".itemIntroText",
-    ".entry-content",
-    ".article-content",
-    "article",
-    "main"
-  ];
+  let selected = null;
 
-  let elemento = null;
-
-  for (const seletor of seletores) {
-    const candidato = $(seletor).first();
+  for (const selector of [
+    '.itemFullText',
+    '.entry-content',
+    '.article-content',
+    '.post-content',
+    '.noticia-conteudo',
+    '.itemIntroText',
+    'article',
+    'main',
+  ]) {
+    const element = $(selector).first();
 
     if (
-      candidato.length &&
-      limpar(candidato.text()).length > 100
+      element.length &&
+      clean(element.text()).length > 100
     ) {
-      elemento = candidato;
+      selected = element;
       break;
     }
   }
 
-  if (!elemento) {
-    return {
-      texto: "",
-      paragrafos: []
-    };
+  if (!selected) {
+    return { text: '', paragraphs: [] };
   }
 
-  const paragrafos = [];
+  const paragraphs = [];
 
-  elemento.find("p, li").each((_, el) => {
-    const texto = limpar($(el).text());
+  selected.find('p,li').each((_, element) => {
+    const text = clean($(element).text());
 
-    if (texto.length > 10) {
-      paragrafos.push(texto);
+    if (text.length > 10) {
+      paragraphs.push(text);
     }
   });
 
+  if (!paragraphs.length) {
+    paragraphs.push(clean(selected.text()));
+  }
+
   return {
-    texto: limpar(paragrafos.join(" ")),
-    paragrafos
+    text: clean(paragraphs.join(' ')),
+    paragraphs,
   };
 }
 
-function identificarDetalhes(
-  conteudo,
-  dataPublicacao
-) {
-  const anoReferencia =
-    dataPublicacao?.getFullYear() || null;
-
-  const datas = extrairDatas(
-    conteudo.texto,
-    anoReferencia
+function extractDetails(article, publicationDate) {
+  const dates = extractDates(
+    article.text,
+    publicationDate
   );
 
-  const horarios = extrairHorarios(
-    conteudo.texto
-  );
+  const times = extractTimes(article.text);
 
-  const locais = extrairLocal(
-    conteudo.paragrafos.join("\n")
-  );
+  let location = null;
+  let address = null;
 
-  // Não escolher uma data arbitrária quando
-  // a notícia menciona vários dias.
-  const dataUnica =
-    datas.datas.length === 1
-      ? datas.datas[0].iso
-      : null;
+  for (const paragraph of article.paragraphs) {
+    const localMatch = paragraph.match(
+      /^(?:local|onde)\s*:\s*(.+)$/i
+    );
 
-  const horarioUnico =
-    horarios.length === 1
-      ? horarios[0]
-      : null;
+    const addressMatch = paragraph.match(
+      /^endere[cç]o\s*:\s*(.+)$/i
+    );
 
-  return {
-    description:
-      conteudo.texto.slice(0, 2000) || null,
-
-    eventDateCandidates:
-      datas.datas.map(d => d.iso),
-
-    eventDateTextCandidates:
-      datas.datasSemAno,
-
-    timeCandidates: horarios,
-
-    location: locais.local,
-    address: locais.endereco,
-
-    // Dados preliminares para revisão.
-    suggestedStartAt: dataUnica,
-    suggestedStartTime:
-      horarioUnico?.inicio || null,
-    suggestedEndTime:
-      horarioUnico?.fim || null
-  };
-}
-
-async function enriquecerCampanha(campanha) {
-  try {
-    const html = await baixar(campanha.url);
-    const conteudo = extrairConteudoNoticia(html);
-
-    if (!conteudo.texto) {
-      console.warn(
-        `Conteúdo não identificado: ${campanha.titulo}`
-      );
-
-      return {
-        ...campanha,
-        detalhes: null
-      };
+    if (localMatch && !location) {
+      location = clean(localMatch[1]).slice(0, 250);
     }
 
-    const detalhes = identificarDetalhes(
-      conteudo,
-      campanha.dataPublicacao
-    );
-
-    console.log(`Detalhes: ${campanha.titulo}`);
-    console.log({
-      datas: detalhes.eventDateCandidates,
-      horarios: detalhes.timeCandidates,
-      local: detalhes.location,
-      endereco: detalhes.address
-    });
-
-    return {
-      ...campanha,
-      detalhes
-    };
-  } catch (erro) {
-    console.warn(
-      `Falha ao abrir notícia: ${campanha.url}`
-    );
-    console.warn(erro.message);
-
-    return {
-      ...campanha,
-      detalhes: null
-    };
+    if (addressMatch && !address) {
+      address = clean(addressMatch[1]).slice(0, 300);
+    }
   }
+
+  const today = todayFortaleza();
+
+  const futureDates = dates.filter(
+    item => item.data >= today
+  );
+
+  return {
+    description: article.text.slice(0, 2000) || null,
+
+    // Datas encontradas são sugestões, não confirmações.
+    eventDateCandidates: dates.map(item => item.data),
+    eventDateDetails: dates,
+    futureDateCandidates: futureDates.map(item => item.data),
+
+    timeCandidates: times,
+
+    // Apenas uma sugestão quando não há ambiguidade.
+    suggestedStartAt:
+      futureDates.length === 1
+        ? futureDates[0].data
+        : null,
+
+    suggestedStartTime:
+      times.length === 1
+        ? times[0].inicio
+        : null,
+
+    suggestedEndTime:
+      times.length === 1
+        ? times[0].fim
+        : null,
+
+    suggestedLocation: location,
+    suggestedAddress: address,
+  };
 }
 
-// ==========================================
-// BUSCAR CAMPANHAS
-// ==========================================
+function extractRSS(xml, source) {
+  const $ = cheerio.load(xml, { xmlMode: true });
+  const result = new Map();
 
-async function buscarCampanhas() {
-  const todas = new Map();
+  $('item,entry').each((_, element) => {
+    const item = $(element);
 
-  for (const fonte of FONTES) {
-    console.log(`\nConsultando: ${fonte.nome}`);
+    const title = clean(
+      item.find('title').first().text()
+    );
+
+    let link = clean(
+      item.find('link').first().text()
+    );
+
+    if (!link) {
+      link = item.find('link').first().attr('href');
+    }
+
+    if (!isCampaign(title)) return;
+
+    const url = safeUrl(link, source.url, source.host);
+
+    if (!url) return;
+
+    const rawDate = clean(
+      item.find('pubDate,published,updated').first().text()
+    );
+
+    result.set(url, {
+      title,
+      url,
+      source,
+      publicationDate: parseDate(rawDate),
+    });
+  });
+
+  return [...result.values()];
+}
+
+function extractHTML(html, source) {
+  const $ = cheerio.load(html);
+  const result = new Map();
+
+  $('a[href]').each((_, element) => {
+    const link = $(element);
+    const title = clean(link.text());
+    const href = link.attr('href');
+
+    if (!href || !isCampaign(title)) return;
+
+    const url = safeUrl(
+      href,
+      source.url,
+      source.host
+    );
+
+    if (!url) return;
+
+    const path = new URL(url).pathname;
+
+    if (
+      path === '/' ||
+      path.includes('/categoria/') ||
+      path.includes('/category/') ||
+      path.includes('/tag/')
+    ) {
+      return;
+    }
+
+    if (
+      source.host === 'fortaleza.ce.gov.br' &&
+      !path.startsWith('/noticias/')
+    ) {
+      return;
+    }
+
+    result.set(url, {
+      title,
+      url,
+      source,
+      publicationDate: null,
+    });
+  });
+
+  return [...result.values()];
+}
+
+async function extractWordPress(source) {
+  const result = new Map();
+
+  const MAX_PAGES = 3;
+  const PER_PAGE = 50;
+  const MAX_AGE_DAYS = 120;
+
+  const cutoff =
+    Date.now() - MAX_AGE_DAYS * 86400000;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const url = new URL(source.url);
+
+    url.searchParams.set('per_page', String(PER_PAGE));
+    url.searchParams.set('page', String(page));
+    url.searchParams.set(
+      '_fields',
+      'id,date,link,title,excerpt'
+    );
+
+    let response;
 
     try {
-      const conteudo = await baixar(fonte.url);
+      response = await download(
+        url.toString(),
+        'application/json'
+      );
+    } catch (error) {
+      console.warn(
+        `Hemoce API: página ${page}: ${error.message}`
+      );
+      break;
+    }
 
-      const campanhas =
-        fonte.tipo === "rss"
-          ? extrairRSS(conteudo, fonte)
-          : extrairHTML(conteudo, fonte);
+    const posts = await response.json();
+
+    if (!Array.isArray(posts) || posts.length === 0) {
+      break;
+    }
+
+    console.log(
+      `Hemoce API: página ${page}, ${posts.length} notícias`
+    );
+
+    let oldestDate = Infinity;
+
+    for (const post of posts) {
+      const title = plain(post.title?.rendered);
+      const excerpt = plain(post.excerpt?.rendered);
+      const publicationDate = parseDate(
+        post.date ? `${post.date}-03:00` : null
+      );
+
+      if (publicationDate) {
+        oldestDate = Math.min(
+          oldestDate,
+          publicationDate.getTime()
+        );
+
+        if (publicationDate.getTime() < cutoff) {
+          continue;
+        }
+      }
+
+      if (!isCampaign(title)) continue;
+
+      const url = safeUrl(
+        post.link,
+        source.url,
+        source.host
+      );
+
+      if (!url) continue;
+
+      result.set(url, {
+        title,
+        url,
+        source,
+        publicationDate,
+        excerpt,
+      });
+    }
+
+    if (posts.length < PER_PAGE) break;
+
+    // Interrompe páginas antigas quando a ordenação é recente.
+    if (oldestDate < cutoff) break;
+  }
+
+  return [...result.values()];
+}
+
+async function findCampaigns() {
+  const all = new Map();
+
+  for (const source of SOURCES) {
+    console.log(`\nConsultando: ${source.name}`);
+
+    try {
+      let found;
+
+      if (source.kind === 'wordpress') {
+        found = await extractWordPress(source);
+      } else {
+        const response = await download(
+          source.url,
+          source.kind === 'rss'
+            ? 'application/rss+xml, application/xml'
+            : 'text/html'
+        );
+
+        const raw = await response.text();
+
+        found =
+          source.kind === 'rss'
+            ? extractRSS(raw, source)
+            : extractHTML(raw, source);
+      }
 
       console.log(
-        `Candidatas encontradas: ${campanhas.length}`
+        `Candidatas encontradas: ${found.length}`
       );
 
-      for (const campanha of campanhas) {
-        todas.set(campanha.url, campanha);
+      for (const campaign of found) {
+        if (!all.has(campaign.url)) {
+          all.set(campaign.url, campaign);
+        } else {
+          const existing = all.get(campaign.url);
+
+          // Preserva a data de publicação mais informativa.
+          if (
+            !existing.publicationDate &&
+            campaign.publicationDate
+          ) {
+            all.set(campaign.url, campaign);
+          }
+        }
       }
-    } catch (erro) {
+    } catch (error) {
       console.warn(
-        `Falha na fonte ${fonte.nome}: ${erro.message}`
+        `Falha na fonte ${source.name}: ${error.message}`
       );
-
-      if (erro.cause?.code) {
-        console.warn(`Causa: ${erro.cause.code}`);
-      }
     }
   }
 
-  const enriquecidas = [];
+  const results = [];
 
-  for (const campanha of todas.values()) {
-    enriquecidas.push(
-      await enriquecerCampanha(campanha)
-    );
+  for (const campaign of all.values()) {
+    try {
+      const response = await download(campaign.url);
+      const html = await response.text();
+
+      const article = extractArticle(html);
+
+      const details = article.text
+        ? extractDetails(
+            article,
+            campaign.publicationDate
+          )
+        : null;
+
+      // Verificação adicional para notícias institucionais.
+      if (
+        EXCLUSIONS.some(term =>
+          norm(campaign.title).includes(term)
+        )
+      ) {
+        console.log(
+          `Ignorada (informativa): ${campaign.title}`
+        );
+        continue;
+      }
+
+      console.log(`\nCampanha: ${campaign.title}`);
+      console.log(`Fonte: ${campaign.source.name}`);
+      console.log(`URL: ${campaign.url}`);
+      console.log(
+        'Datas candidatas:',
+        details?.eventDateCandidates || []
+      );
+      console.log(
+        'Datas futuras candidatas:',
+        details?.futureDateCandidates || []
+      );
+
+      results.push({
+        ...campaign,
+        details,
+      });
+    } catch (error) {
+      console.warn(
+        `Falha ao consultar ${campaign.url}: ${error.message}`
+      );
+
+      results.push({
+        ...campaign,
+        details: null,
+      });
+    }
   }
 
-  return enriquecidas;
+  return results;
 }
 
-// ==========================================
-// FIREBASE
-// ==========================================
+function firestore() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-function conectarFirebase() {
-  const segredo =
-    process.env.FIREBASE_SERVICE_ACCOUNT;
-
-  if (!segredo) {
+  if (!raw) {
     throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT não configurado."
+      'FIREBASE_SERVICE_ACCOUNT não configurado.'
     );
   }
 
-  let conta;
+  let account;
 
   try {
-    conta = JSON.parse(segredo);
+    account = JSON.parse(raw);
   } catch {
     throw new Error(
-      "Credenciais Firebase não contêm JSON válido."
+      'FIREBASE_SERVICE_ACCOUNT não é um JSON válido.'
     );
   }
 
-  if (conta.project_id !== PROJETO) {
-    throw new Error("Projeto Firebase incorreto.");
+  if (account.project_id !== PROJECT_ID) {
+    throw new Error('Projeto Firebase incorreto.');
   }
 
   if (!getApps().length) {
     initializeApp({
-      credential: cert(conta)
+      credential: cert(account),
     });
   }
 
   return getFirestore();
 }
 
-async function gravarCampanhas(campanhas) {
-  const db = conectarFirebase();
+function extractedFields(details) {
+  if (!details) return null;
 
-  let adicionadas = 0;
-  let existentes = 0;
-  let falhas = 0;
+  return {
+    extractedDescription: details.description,
+    eventDateCandidates: details.eventDateCandidates,
+    eventDateDetails: details.eventDateDetails,
+    futureDateCandidates: details.futureDateCandidates,
+    timeCandidates: details.timeCandidates,
+    suggestedStartAt: details.suggestedStartAt,
+    suggestedStartTime: details.suggestedStartTime,
+    suggestedEndTime: details.suggestedEndTime,
+    suggestedLocation: details.suggestedLocation,
+    suggestedAddress: details.suggestedAddress,
+    extractedAt: FieldValue.serverTimestamp(),
+  };
+}
 
-  for (const campanha of campanhas) {
-    const id = `ce_${gerarId(campanha.url)}`;
-    const referencia =
-      db.collection("campaigns").doc(id);
+async function saveCampaigns(campaigns) {
+  const db = firestore();
 
-    const detalhes = campanha.detalhes;
+  let added = 0;
+  let updated = 0;
+  let unchanged = 0;
+  let failed = 0;
+
+  for (const campaign of campaigns) {
+    const ref = db
+      .collection('campaigns')
+      .doc(`ce_${hash(campaign.url)}`);
+
+    const extra = extractedFields(campaign.details);
 
     try {
-      await referencia.create({
-        title: campanha.titulo,
+      const outcome = await db.runTransaction(
+        async transaction => {
+          const snapshot = await transaction.get(ref);
 
-        description:
-          detalhes?.description ||
-          "Publicação identificada automaticamente. " +
-          "Consulte a fonte oficial para detalhes.",
+          if (!snapshot.exists) {
+            transaction.create(ref, {
+              title: campaign.title,
+              description:
+                campaign.details?.description ||
+                campaign.excerpt ||
+                'Publicação identificada em fonte oficial.',
 
-        source: campanha.fonte,
-        sourceUrl: campanha.url,
-        sourceType: "official_news",
+              source: campaign.source.name,
+              sourceUrl: campaign.url,
+              sourceType: 'official_news',
 
-        scope: campanha.abrangencia,
-        city: campanha.cidade,
-        state: campanha.estado,
+              scope: campaign.source.scope,
+              city: campaign.source.city,
+              state: campaign.source.state,
 
-        publishedAt:
-          campanha.dataPublicacao || null,
+              publishedAt: campaign.publicationDate,
 
-        location:
-          detalhes?.location || null,
+              // Não inventar dados de agendamento.
+              location: null,
+              address: null,
+              start_at: null,
+              end_at: null,
 
-        address:
-          detalhes?.address || null,
+              status: 'pending_review',
+              isPublished: false,
 
-        eventDateCandidates:
-          detalhes?.eventDateCandidates || [],
+              // Compatibilidade com documentos antigos.
+              // Não deve controlar agendamento.
+              isBookable: false,
 
-        eventDateTextCandidates:
-          detalhes?.eventDateTextCandidates || [],
+              manuallyEdited: false,
 
-        timeCandidates:
-          detalhes?.timeCandidates || [],
+              ...(extra || {}),
 
-        suggestedStartAt:
-          detalhes?.suggestedStartAt || null,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            });
 
-        suggestedStartTime:
-          detalhes?.suggestedStartTime || null,
+            return 'added';
+          }
 
-        suggestedEndTime:
-          detalhes?.suggestedEndTime || null,
+          const existing = snapshot.data();
 
-        // Nunca publicar automaticamente.
-        status: "pending_review",
-        isPublished: false,
-        isBookable: false,
+          // Não sobrescrever decisões ou edições do admin.
+          if (
+            existing.manuallyEdited === true ||
+            existing.status === 'approved' ||
+            existing.status === 'rejected'
+          ) {
+            return 'unchanged';
+          }
 
-        createdAt:
-          FieldValue.serverTimestamp(),
+          if (!extra) return 'unchanged';
 
-        updatedAt:
-          FieldValue.serverTimestamp()
-      });
+          transaction.update(ref, {
+            ...extra,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
 
-      adicionadas++;
-
-      console.log(
-        `Adicionada: ${campanha.titulo}`
+          return 'updated';
+        }
       );
-    } catch (erro) {
-      if (
-        erro.code === 6 ||
-        erro.code === "already-exists"
-      ) {
-        existentes++;
-      } else {
-        falhas++;
 
-        console.error(
-          `Falha ao gravar "${campanha.titulo}": ` +
-          erro.message
-        );
-      }
+      if (outcome === 'added') added++;
+      else if (outcome === 'updated') updated++;
+      else unchanged++;
+
+      console.log(`${outcome}: ${campaign.title}`);
+    } catch (error) {
+      failed++;
+
+      console.error(
+        `Falha ao gravar ${campaign.title}: ${error.message}`
+      );
     }
   }
 
-  console.log("\nResultado:");
-  console.log({
-    encontradas: campanhas.length,
-    adicionadas,
-    existentes,
-    falhas
+  console.log('\nResultado:', {
+    encontradas: campaigns.length,
+    adicionadas: added,
+    atualizadas: updated,
+    semAlteracao: unchanged,
+    falhas: failed,
   });
 
-  if (falhas > 0) {
+  if (failed > 0) {
     throw new Error(
-      `${falhas} registros falharam.`
+      `${failed} campanha(s) falharam ao gravar.`
     );
   }
 }
 
-// ==========================================
-// EXECUÇÃO
-// ==========================================
+async function main() {
+  console.log('==================================');
+  console.log('AGENDA SAÚDE');
+  console.log('Sincronização CE / Fortaleza');
+  console.log('==================================');
 
-async function executar() {
-  console.log("==================================");
-  console.log("AGENDA SAÚDE");
-  console.log("Sincronização de campanhas");
-  console.log("==================================");
-
-  const campanhas = await buscarCampanhas();
+  const campaigns = await findCampaigns();
 
   console.log(
-    `\nTotal de candidatas: ${campanhas.length}`
+    `\nTotal de candidatas: ${campaigns.length}`
   );
 
-  for (const campanha of campanhas) {
-    console.log(`\n${campanha.titulo}`);
-    console.log(campanha.url);
-  }
-
-  if (
-    process.env.GRAVAR_FIRESTORE !== "true"
-  ) {
+  if (!GRAVAR) {
     console.log(
-      "\nMODO PRÉVIA: nenhuma gravação realizada."
+      '\nMODO PRÉVIA: nenhuma gravação realizada.'
     );
     return;
   }
 
-  if (campanhas.length === 0) {
+  if (campaigns.length === 0) {
     throw new Error(
-      "Nenhuma campanha encontrada."
+      'Nenhuma campanha encontrada. Gravação cancelada.'
     );
   }
 
-  await gravarCampanhas(campanhas);
+  await saveCampaigns(campaigns);
 
-  console.log("\nSincronização concluída.");
+  console.log('\nSincronização concluída.');
 }
 
-executar().catch(erro => {
-  console.error("Erro:", erro.message);
+main().catch(error => {
+  console.error('Erro:', error.message);
   process.exitCode = 1;
 });
