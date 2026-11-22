@@ -39,3 +39,14 @@ example
 # generated native folders
 /ios
 /android
+functions/.env
+
+# Segredos locais e credenciais Firebase
+.env
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+!functions/.env.example
+*serviceAccount*.json
+*-firebase-adminsdk-*.json

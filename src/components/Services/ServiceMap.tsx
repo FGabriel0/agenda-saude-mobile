@@ -1,75 +1,45 @@
 import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 
-import {
-  TouchableOpacity,
-  View,
-  Text,
-  StyleSheet,
-} from 'react-native';
-
-import { Ionicons } from '@expo/vector-icons';
+// OpenStreetMap: mapa interativo centralizado em Fortaleza.
+// Este arquivo é usado no Android e iOS.
+const MAP_URL =
+  'https://www.openstreetmap.org/export/embed.html?bbox=-38.5700%2C-3.7800%2C-38.4800%2C-3.6900&layer=mapnik';
 
 interface ServiceMapProps {
-  onPress?: () => void;
+  onPress?: () => void; // Mantido por compatibilidade com o componente anterior.
 }
 
-export default function ServiceMap({
-  onPress,
-}: ServiceMapProps) {
+export default function ServiceMap(_props: ServiceMapProps) {
   return (
-    <TouchableOpacity
-      style={styles.container}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-
-      <Ionicons
-        name="location-outline"
-        size={27}
-        color="#07805F"
+    <View style={styles.container}>
+      <WebView
+        source={{ uri: MAP_URL }}
+        style={styles.map}
+        javaScriptEnabled
+        domStorageEnabled
+        scrollEnabled
+        nestedScrollEnabled
+        setSupportMultipleWindows={false}
+        originWhitelist={['https://*']}
       />
-
-      <Text style={styles.title}>
-        Ver unidades e serviços
-      </Text>
-
-      <Text style={styles.subtitle}>
-        Ver mapa completo
-      </Text>
-
-    </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    height: 107,
-
-    backgroundColor: '#E1F1ED',
-
+    height: 170,
+    marginBottom: 17,
     borderRadius: 14,
-
     borderWidth: 1,
     borderColor: '#D5E8E2',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-
-    marginBottom: 17,
+    overflow: 'hidden',
+    backgroundColor: '#E1F1ED',
   },
-
-  title: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#07805F',
-
-    marginTop: 2,
-  },
-
-  subtitle: {
-    fontSize: 9,
-    color: '#07805F',
-
-    marginTop: 3,
+  map: {
+    flex: 1,
+    backgroundColor: '#E1F1ED',
   },
 });

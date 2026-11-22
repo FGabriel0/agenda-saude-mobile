@@ -157,7 +157,7 @@ export default function HomeScreen() {
         campanha => idsAgendados.has(campanha.id)
       );
 
-      setCampanhas(futuras);
+      setCampanhas(futuras.filter(campanha => !idsAgendados.has(campanha.id)));
       setAgendadas(campanhasAgendadas);
     } catch (error) {
       console.error(
@@ -177,6 +177,13 @@ export default function HomeScreen() {
       carregarDados();
     }, [carregarDados])
   );
+
+  function abrirCampanha(campanha: CampanhaHome) {
+    router.push({
+      pathname: '/agenda',
+      params: { data: campanha.inicio, acesso: String(Date.now()) },
+    });
+  }
 
   async function sairDaConta() {
     try {
@@ -251,9 +258,7 @@ export default function HomeScreen() {
               onVerTodas={() =>
                 router.push('/agenda')
               }
-              onSelecionar={() =>
-                router.push('/agenda')
-              }
+              onSelecionar={abrirCampanha}
             />
 
             <View style={styles.sectionSpacing}>
@@ -264,9 +269,7 @@ export default function HomeScreen() {
                 onVerTodas={() =>
                   router.push('/agenda')
                 }
-                onSelecionar={() =>
-                  router.push('/agenda')
-                }
+                onSelecionar={abrirCampanha}
                 mostrarConfirmacao
               />
             </View>

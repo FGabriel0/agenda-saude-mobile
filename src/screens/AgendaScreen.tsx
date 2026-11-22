@@ -1,22 +1,24 @@
-
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 
 import {
-    useCallback,
-    useState,
+  useCallback,
+  useEffect,
+  useState,
 } from 'react';
 
 import {
-    ActivityIndicator,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 import AppointmentCard from '../components/agenda/AppointmentCard';
 import Calendar from '../components/agenda/Calendar';
@@ -28,9 +30,9 @@ import Header from '../components/Home/Header';
 import { COLORS } from '../styles/theme';
 
 import {
-    cancelAppointment,
-    createAppointment,
-    getMyAppointments,
+  cancelAppointment,
+  createAppointment,
+  getMyAppointments,
 } from '../services/appointments';
 
 import { getCampaignsByDate } from '../services/campaigns';
@@ -51,6 +53,7 @@ type Compromisso = {
   horarioFim?: string;
   titulo: string;
   endereco: string;
+  local: string;
   tipoUnidade: TipoUnidade;
   tipo: 'Doação' | 'Vacinação' | 'Outros';
   cor: string;
@@ -77,6 +80,38 @@ function formatarHorario(
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+// Exibe horários confirmados e, durante testes, sugestões da IA.
+// Não interpreta meia-noite como horário de atendimento quando o horário não foi confirmado.
+function horarioCampanha(campanha: {
+  start_at: string;
+  end_at: string;
+  timeConfirmed: boolean;
+  agendaSuggestedStartTime?: string | null;
+  agendaSuggestedEndTime?: string | null;
+  suggestedStartTime?: string | null;
+  suggestedEndTime?: string | null;
+  aiStartTime?: string | null;
+  aiEndTime?: string | null;
+}) {
+  const valido = (valor?: string | null) =>
+    typeof valor === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(valor)
+      ? valor : undefined;
+  const inicioIA = valido(campanha.agendaSuggestedStartTime) ?? valido(campanha.suggestedStartTime) ?? valido(campanha.aiStartTime);
+  const fimIA = valido(campanha.agendaSuggestedEndTime) ?? valido(campanha.suggestedEndTime) ?? valido(campanha.aiEndTime);
+  const inicioData = formatarHorario(campanha.start_at);
+  const fimData = formatarHorario(campanha.end_at);
+  // Horários manuais existentes prevalecem sobre sugestões da IA.
+  const inicioManual = inicioData && inicioData !== '00:00' ? inicioData : undefined;
+  const fimManual = fimData && fimData !== '00:00' && fimData !== '23:59' ? fimData : undefined;
+  const inicio = inicioManual ?? inicioIA;
+  const fim = fimManual ?? fimIA;
+  const inicioSugerido = !inicioManual && inicio === inicioIA;
+  return {
+    horario: inicio ? `${inicio}${inicioSugerido ? ' (sugerido)' : ''}` : 'Não informado',
+    horarioFim: fim && fim !== inicio ? fim : undefined,
+  };
 }
 
 function identificarTipoUnidade(
@@ -108,12 +143,34 @@ function identificarTipoUnidade(
   return 'Não informado';
 }
 
+function converterDataCampanha(valor?: string): Date {
+  if (!valor) return new Date();
+  const data = new Date(valor);
+  if (Number.isNaN(data.getTime())) return new Date();
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Fortaleza',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(data);
+  const ano = Number(partes.find(p => p.type === 'year')?.value);
+  const mes = Number(partes.find(p => p.type === 'month')?.value);
+  const dia = Number(partes.find(p => p.type === 'day')?.value);
+  return new Date(ano, mes - 1, dia, 12);
+}
+
 export default function AgendaScreen() {
+  const { data, acesso } = useLocalSearchParams<{ data?: string; acesso?: string }>();
   const [dataSelecionada, setDataSelecionada] =
-    useState<Date>(() => new Date());
+    useState<Date>(() => converterDataCampanha(data));
 
   const [filtroSelecionado, setFiltroSelecionado] =
     useState<Filtro>('Todos');
+
+  useEffect(() => {
+    if (data) {
+      setDataSelecionada(converterDataCampanha(data));
+      setFiltroSelecionado('Todos');
+    }
+  }, [data, acesso]);
 
   const [compromissos, setCompromissos] =
     useState<Compromisso[]>([]);
@@ -177,14 +234,28 @@ export default function AgendaScreen() {
         const campanhas =
           await getCampaignsByDate(data);
 
-        const formatadas: Compromisso[] =
-          campanhas.map(campanha => {
-            const horario =
-              formatarHorario(campanha.start_at) ??
-              'Não informado';
-
-            const horarioFim =
-              formatarHorario(campanha.end_at);
+        // O serviço retorna os campos públicos; as sugestões podem estar
+        // apenas no documento Firestore. Lê-las sem alterar os dados.
+        const formatadas: Compromisso[] = await Promise.all(
+          campanhas.map(async campanha => {
+            let extras: Record<string, unknown> = {};
+            try {
+              const registro = await getDoc(doc(db, 'campaigns', campanha.firestoreId));
+              if (registro.exists()) extras = registro.data();
+            } catch (erro) {
+              console.warn('Sugestões indisponíveis:', campanha.firestoreId, erro);
+            }
+            const campo = (nome: string): string | null =>
+              typeof extras[nome] === 'string' ? extras[nome] as string : null;
+            const { horario, horarioFim } = horarioCampanha({
+              ...campanha,
+              agendaSuggestedStartTime: campo('agendaSuggestedStartTime'),
+              agendaSuggestedEndTime: campo('agendaSuggestedEndTime'),
+              suggestedStartTime: campo('suggestedStartTime'),
+              suggestedEndTime: campo('suggestedEndTime'),
+              aiStartTime: campo('aiStartTime'),
+              aiEndTime: campo('aiEndTime'),
+            });
 
             const categoria =
               campanha.category?.toLowerCase() ?? '';
@@ -206,8 +277,13 @@ export default function AgendaScreen() {
 
             const endereco =
               campanha.address?.trim() ||
+              campo('agendaSuggestedAddress') ||
               campanha.health_units?.[0]?.address?.trim() ||
               'Endereço não informado';
+
+            const local = campanha.location?.trim() ||
+              campo('agendaSuggestedLocation') ||
+              campanha.health_units?.[0]?.name || '';
 
             const agendavel =
               campanha.status === 'approved';
@@ -219,15 +295,14 @@ export default function AgendaScreen() {
               horario,
               horarioFim,
               titulo: campanha.title,
-              endereco,
+              endereco: local && !endereco.includes(local) ? `${local} · ${endereco}` : endereco,
               tipoUnidade,
+              local,
               tipo,
-              cor:
-                tipo === 'Doação'
-                  ? COLORS.danger
-                  : COLORS.primary,
+              cor: COLORS.primary,
             };
-          });
+          })
+        );
 
         setCompromissos(formatadas);
       } catch (error) {

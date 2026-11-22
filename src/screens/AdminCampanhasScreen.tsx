@@ -53,20 +53,41 @@ type Campaign = {
   title: string;
   description: string;
   status: string;
-  start_at: string | null;
-  end_at: string | null;
+  approvalMethod: string;
+  start_at: unknown;
+  end_at: unknown;
+  suggestedStartAt: string;
+  suggestedEndAt: string;
+  suggestedStartTime: string;
+  suggestedEndTime: string;
+  suggestedPeriodEvidence: string;
   location: string;
   address: string;
   eventDateCandidates: DataCandidata[];
   timeCandidates: HorarioCandidato[];
   suggestedLocation: string;
   suggestedAddress: string;
+  aiTitle: string;
+  aiDescription: string;
+  aiCategory: string;
+  aiStartDate: string;
+  aiEndDate: string;
+  aiStartTime: string;
+  aiEndTime: string;
+  aiLocation: string;
+  aiAddress: string;
+  aiDateEvidence: string;
+  aiTimeEvidence: string;
+  aiLocationEvidence: string;
+  aiAddressEvidence: string;
+  sourceUrl: string;
 };
 
 type FormData = {
   title: string;
   description: string;
-  date: string;
+  startDate: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   location: string;
@@ -145,32 +166,34 @@ function paraISO(data: string, hora: string) {
   ).toISOString();
 }
 
+function dataSugerida(valor: string): string {
+  if (!valor) return '';
+  const encontrada = valor.match(/^\d{4}-\d{2}-\d{2}/);
+  return encontrada && validarData(encontrada[0]) ? encontrada[0] : '';
+}
+
 function criarFormulario(c: Campaign): FormData {
   const inicio = partesDataLocal(c.start_at);
   const fim = partesDataLocal(c.end_at);
 
-  const dataSugerida =
-    c.eventDateCandidates.length === 1
-      ? c.eventDateCandidates[0].data
-      : '';
-
-  const horarioSugerido =
-    c.timeCandidates.length === 1
-      ? c.timeCandidates[0]
-      : null;
+  // Somente uma data candidata pode preencher o início; várias datas
+  // distintas não devem ser interpretadas como um período.
+  const datas = [...new Set(c.eventDateCandidates
+    .map(item => typeof item === 'string' ? item : item?.data)
+    .filter((item): item is string => typeof item === 'string' && validarData(item)))];
+  const dataUnica = datas.length === 1 ? datas[0] : '';
+  const horarioSugerido = c.timeCandidates.length === 1
+    ? c.timeCandidates[0] : null;
 
   return {
     title: c.title,
     description: c.description,
-    date: inicio?.data || dataSugerida,
-    startTime:
-      inicio?.hora || horarioSugerido?.inicio || '',
-    endTime:
-      fim?.hora || horarioSugerido?.fim || '',
-    location:
-      c.location || c.suggestedLocation,
-    address:
-      c.address || c.suggestedAddress,
+    startDate: inicio?.data || dataSugerida(c.suggestedStartAt) || dataSugerida(c.aiStartDate) || dataUnica,
+    endDate: fim?.data || dataSugerida(c.suggestedEndAt) || dataSugerida(c.aiEndDate),
+    startTime: inicio?.hora || c.suggestedStartTime || c.aiStartTime || horarioSugerido?.inicio || '',
+    endTime: fim?.hora || c.suggestedEndTime || c.aiEndTime || horarioSugerido?.fim || '',
+    location: c.location || c.suggestedLocation || c.aiLocation,
+    address: c.address || c.suggestedAddress || c.aiAddress,
   };
 }
 
@@ -186,6 +209,7 @@ export default function AdminCampanhasScreen() {
 
   const [form, setForm] = useState<FormData | null>(null);
   const [erro, setErro] = useState('');
+  const [filtro, setFiltro] = useState<'pending_review' | 'approved' | 'rejected' | 'all'>('pending_review');
 
   const carregarCampanhas = useCallback(async () => {
     setCarregando(true);
@@ -222,8 +246,14 @@ export default function AdminCampanhasScreen() {
             title: texto(d.title),
             description: texto(d.description),
             status: texto(d.status) || 'pending_review',
+            approvalMethod: texto(d.approvalMethod),
             start_at: d.start_at ?? null,
             end_at: d.end_at ?? null,
+            suggestedStartAt: texto(d.suggestedStartAt),
+            suggestedEndAt: texto(d.suggestedEndAt),
+            suggestedStartTime: texto(d.suggestedStartTime),
+            suggestedEndTime: texto(d.suggestedEndTime),
+            suggestedPeriodEvidence: texto(d.suggestedPeriodEvidence || d.periodEvidence),
             location: texto(d.location),
             address: texto(d.address),
             eventDateCandidates:
@@ -238,6 +268,20 @@ export default function AdminCampanhasScreen() {
               texto(d.suggestedLocation),
             suggestedAddress:
               texto(d.suggestedAddress),
+            aiTitle: texto(d.aiTitle),
+            aiDescription: texto(d.aiDescription),
+            aiCategory: texto(d.aiCategory),
+            aiStartDate: texto(d.aiStartDate),
+            aiEndDate: texto(d.aiEndDate),
+            aiStartTime: texto(d.aiStartTime),
+            aiEndTime: texto(d.aiEndTime),
+            aiLocation: texto(d.aiLocation),
+            aiAddress: texto(d.aiAddress),
+            aiDateEvidence: texto(d.aiDateEvidence),
+            aiTimeEvidence: texto(d.aiTimeEvidence),
+            aiLocationEvidence: texto(d.aiLocationEvidence),
+            aiAddressEvidence: texto(d.aiAddressEvidence),
+            sourceUrl: texto(d.sourceUrl),
           };
         }
       );
@@ -338,63 +382,58 @@ export default function AdminCampanhasScreen() {
       return;
     }
 
-    if (!form.title.trim()) {
-      setErro('Informe o título.');
-      return;
+    // Rejeitar nao exige preencher campos que nao foram confirmados.
+    // Rascunhos podem ficar incompletos; aprovacao exige dados completos.
+    if (acao !== 'reject') {
+      if (!form.title.trim()) {
+        setErro('Informe o título.');
+        return;
+      }
+      if (form.startDate && !validarData(form.startDate)) {
+        setErro('Data de início inválida. Use AAAA-MM-DD.');
+        return;
+      }
+      if (form.endDate && !validarData(form.endDate)) {
+        setErro('Data de término inválida. Use AAAA-MM-DD.');
+        return;
+      }
+      if (form.startTime && !validarHora(form.startTime)) {
+        setErro('Horário inicial inválido. Use HH:MM.');
+        return;
+      }
+      if (form.endTime && !validarHora(form.endTime)) {
+        setErro('Horário final inválido. Use HH:MM.');
+        return;
+      }
+      if (form.startTime && !form.startDate) {
+        setErro('Informe a data correspondente ao horário inicial.');
+        return;
+      }
+      if (form.endTime && !form.endDate) {
+        setErro('Informe a data correspondente ao horário final.');
+        return;
+      }
+      if (form.endDate && !form.startDate) {
+        setErro('Informe a data de início da campanha.');
+        return;
+      }
+      if (form.startDate && form.endDate && form.endDate < form.startDate) {
+        setErro('A data de término não pode ser anterior à data de início.');
+        return;
+      }
+      if (form.startDate && form.endDate && form.startTime && form.endTime &&
+          `${form.endDate}T${form.endTime}` <= `${form.startDate}T${form.startTime}`) {
+        setErro('O término deve ocorrer depois do início.');
+        return;
+      }
     }
 
-    if (form.date && !validarData(form.date)) {
-      setErro('Data inválida. Use AAAA-MM-DD.');
-      return;
-    }
-
-    if (
-      form.startTime &&
-      !validarHora(form.startTime)
-    ) {
-      setErro('Horário inicial inválido.');
-      return;
-    }
-
-    if (
-      form.endTime &&
-      !validarHora(form.endTime)
-    ) {
-      setErro('Horário final inválido.');
-      return;
-    }
-
-    if (
-      (form.startTime || form.endTime) &&
-      (!form.date || !form.startTime || !form.endTime)
-    ) {
-      setErro('Preencha data e os dois horários.');
-      return;
-    }
-
-    if (
-      form.startTime &&
-      form.endTime &&
-      form.endTime <= form.startTime
-    ) {
-      setErro('O horário final deve ser posterior ao inicial.');
-      return;
-    }
-
-    if (
-      acao === 'approve' &&
-      (
-        !form.date ||
-        !form.startTime ||
-        !form.endTime ||
-        !form.location.trim() ||
-        !form.address.trim()
-      )
-    ) {
-      setErro(
-        'Para aprovar, informe data, horários, local e endereço.'
-      );
-      return;
+    if (acao === 'approve') {
+      if (!form.description.trim() || !form.startDate || !form.endDate ||
+          !form.startTime || !form.endTime || !form.location.trim() || !form.address.trim()) {
+        setErro('Para aprovar, informe descrição, datas, horários, local e endereço.');
+        return;
+      }
     }
 
     setSalvando(true);
@@ -418,38 +457,51 @@ export default function AdminCampanhasScreen() {
         );
       }
 
-      const inicio =
-        form.date && form.startTime
-          ? paraISO(form.date, form.startTime)
-          : null;
+       const campanhaAtual = campanhas.find(c => c.firestoreId === selecionada);
+       if (!campanhaAtual) throw new Error('Campanha não encontrada. Atualize a lista.');
 
-      const fim =
-        form.date && form.endTime
-          ? paraISO(form.date, form.endTime)
-          : null;
+       const aprovada = acao === 'approve';
+       const rejeitada = acao === 'reject';
+       // Rascunho de uma campanha publicada permanece publicado.
+       // Para retirar do ar, use Rejeitar explicitamente.
+       const manterPublicada = acao === 'draft' && campanhaAtual.status === 'approved';
+       if (manterPublicada) {
+         const completo = form.description.trim() && form.startDate && form.endDate &&
+           form.startTime && form.endTime && form.location.trim() && form.address.trim();
+         if (!completo) {
+           throw new Error('Para manter uma campanha publicada, preserve os dados completos. Use Rejeitar para retirar do ar.');
+         }
+       }
 
-      const aprovada = acao === 'approve';
+       const alteracoes = rejeitada
+         ? {
+             status: 'rejected',
+             isPublished: false,
+             isBookable: false,
+             manuallyEdited: true,
+             approvalMethod: 'manual_rejected',
+             updatedAt: serverTimestamp(),
+           }
+         : {
+             title: form.title.trim(),
+             description: form.description.trim(),
+             start_at: form.startDate && form.startTime
+               ? paraISO(form.startDate, form.startTime) : null,
+             end_at: form.endDate && form.endTime
+               ? paraISO(form.endDate, form.endTime) : null,
+             location: form.location.trim(),
+             address: form.address.trim(),
+             // Horários somente confirmados após salvamento manual completo.
+             timeConfirmed: Boolean(form.startDate && form.endDate && form.startTime && form.endTime),
+             status: aprovada || manterPublicada ? 'approved' : 'pending_review',
+             isPublished: aprovada || manterPublicada,
+             isBookable: false,
+             approvalMethod: aprovada ? 'manual' : (manterPublicada ? campanhaAtual.approvalMethod : null),
+             manuallyEdited: true,
+             updatedAt: serverTimestamp(),
+           };
 
-      await updateDoc(
-        doc(db, 'campaigns', selecionada),
-        {
-          title: form.title.trim(),
-          description: form.description.trim(),
-          start_at: inicio,
-          end_at: fim,
-          location: form.location.trim(),
-          address: form.address.trim(),
-
-          status: aprovada
-          ? 'approved'
-          : acao === 'reject'
-            ? 'rejected'
-            : 'pending_review',
-
-          manuallyEdited: true,
-          updatedAt: serverTimestamp(),
-        }
-      );
+       await updateDoc(doc(db, 'campaigns', selecionada), alteracoes);
 
       setSelecionada(null);
       setForm(null);
@@ -457,7 +509,7 @@ export default function AdminCampanhasScreen() {
       await carregarCampanhas();
 
       const mensagem = aprovada
-        ? 'Campanha aprovada e liberada para agendamento!'
+        ? 'Campanha aprovada e publicada!'
         : 'Campanha atualizada com sucesso!';
 
       if (Platform.OS === 'web') {
@@ -524,7 +576,24 @@ export default function AdminCampanhasScreen() {
         <Text style={styles.erro}>{erro}</Text>
       )}
 
-      {campanhas.map(campanha => (
+       <View style={styles.filtros}>
+         {(['pending_review', 'approved', 'rejected', 'all'] as const).map(opcao => (
+           <TouchableOpacity
+             key={opcao}
+             style={[
+             styles.filtroBotao,
+              filtro === opcao && styles.filtroBotaoAtivo,
+              ]}
+             onPress={() => setFiltro(opcao)}
+           >
+             <Text style={[styles.filtroTexto, filtro === opcao && styles.filtroTextoAtivo]}>
+               {{ pending_review: 'Pendentes', approved: 'Aprovadas', rejected: 'Rejeitadas', all: 'Todas' }[opcao]}
+             </Text>
+           </TouchableOpacity>
+         ))}
+       </View>
+
+       {campanhas.filter(c => filtro === 'all' || c.status === filtro).map(campanha => (
         <View
           key={campanha.firestoreId}
           style={styles.cartao}
@@ -533,13 +602,32 @@ export default function AdminCampanhasScreen() {
             {campanha.title}
           </Text>
 
-          <Text style={styles.descricao}>
-            {campanha.description}
+          <Text style={styles.descricao} numberOfLines={3}>
+            {campanha.description || "Sem descrição disponível."}
           </Text>
 
           <Text style={styles.status}>
-            Status: {campanha.status}
+            Status: {campanha.status}{campanha.approvalMethod === 'automatic_verified' ? ' · Aprovada automaticamente' : campanha.approvalMethod === 'manual' ? ' · Aprovada manualmente' : ''}
           </Text>
+
+          {!!campanha.sourceUrl && (
+            <Text style={styles.sugestao} selectable>Fonte oficial: {campanha.sourceUrl}</Text>
+          )}
+          {!!campanha.aiDescription && (
+            <View>
+              <Text style={styles.sugestao}>Sugestão da IA ({campanha.aiCategory || 'Outros'}): {campanha.aiDescription}</Text>
+              {!!campanha.aiDateEvidence && <Text style={styles.sugestao}>Evidência de data: {campanha.aiDateEvidence}</Text>}
+              {!!campanha.aiTimeEvidence && <Text style={styles.sugestao}>Evidência de horário: {campanha.aiTimeEvidence}</Text>}
+              {!!campanha.aiLocationEvidence && <Text style={styles.sugestao}>Evidência de local: {campanha.aiLocationEvidence}</Text>}
+              {!!campanha.aiAddressEvidence && <Text style={styles.sugestao}>Evidência de endereço: {campanha.aiAddressEvidence}</Text>}
+            </View>
+          )}
+          {!!(campanha.suggestedStartAt || campanha.suggestedEndAt) && (
+            <Text style={styles.sugestao}>
+              Período sugerido: {dataSugerida(campanha.suggestedStartAt) || 'não identificado'}
+              {' até '}{dataSugerida(campanha.suggestedEndAt) || 'não identificado'}
+            </Text>
+          )}
 
           {selecionada === campanha.firestoreId &&
           form ? (
@@ -566,13 +654,23 @@ export default function AdminCampanhasScreen() {
               />
 
               <Text style={styles.rotulo}>
-                Data do evento (AAAA-MM-DD)
+                Data de início (AAAA-MM-DD)
               </Text>
               <TextInput
                 style={styles.input}
-                placeholder="2026-11-19"
-                value={form.date}
-                onChangeText={v => alterar('date', v)}
+                placeholder="2026-11-23"
+                value={form.startDate}
+                onChangeText={v => alterar('startDate', v)}
+              />
+
+              <Text style={styles.rotulo}>
+                Data de término (AAAA-MM-DD)
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="2026-11-29"
+                value={form.endDate}
+                onChangeText={v => alterar('endDate', v)}
               />
 
               <Text style={styles.rotulo}>
@@ -687,6 +785,36 @@ export default function AdminCampanhasScreen() {
 }
 
 const styles = StyleSheet.create({
+    filtros: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  filtroBotao: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#E7EFEC',
+    borderWidth: 1,
+    borderColor: '#CEDBD6',
+  },
+
+  filtroBotaoAtivo: {
+    backgroundColor: '#008767',
+    borderColor: '#008767',
+  },
+
+  filtroTexto: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#008767',
+  },
+
+  filtroTextoAtivo: {
+    color: '#FFFFFF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F3F7F6',
@@ -731,6 +859,10 @@ const styles = StyleSheet.create({
   formulario: {
     gap: 10,
     marginTop: 10,
+  },
+  sugestao: {
+    fontSize: 13,
+    color: '#52665F',
   },
   rotulo: {
     fontSize: 14,

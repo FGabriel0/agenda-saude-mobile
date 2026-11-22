@@ -86,16 +86,18 @@ export default function AppointmentCard({
             </Text>
           </View>
 
-          <View style={styles.detailRow}>
-            <Ionicons
-              name="business-outline"
-              size={13}
-              color={COLORS.textSecondary}
-            />
-            <Text style={styles.detailText}>
-              Unidade: {tipoUnidade}
-            </Text>
-          </View>
+          {tipoUnidade !== 'Não informado' && (
+            <View style={styles.detailRow}>
+              <Ionicons
+                name="business-outline"
+                size={13}
+                color={COLORS.textSecondary}
+              />
+              <Text style={styles.detailText}>
+                Unidade: {tipoUnidade}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
